@@ -23,7 +23,7 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 .hint,.small{font-size:12px;color:#68758a;margin-top:9px}
 .drop{border:2px dashed #9bb1c9;border-radius:14px;padding:25px;text-align:center;color:#64748b;background:#f9fcff}#file{display:none}
 #composeCanvas{display:block;width:100%;max-width:620px;height:auto;aspect-ratio:1/1;margin:14px auto 0;border:2px solid #d7e1ec;border-radius:18px;background:#fff;box-shadow:0 8px 20px #00000012}
-.composeWrap{position:relative;width:100%;max-width:620px;margin:14px auto 0;touch-action:none}.composeWrap #composeCanvas{margin:0;position:relative;z-index:0}.stickerLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:18px;z-index:2}.stickerLayer #textCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}.stickerItem{position:absolute;left:0;top:0;width:120px;height:120px;transform-origin:center center;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:move}.stickerItem img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none}.stickerItem.selected{outline:1px dashed #1685e5;outline-offset:3px}.stickerItem:not(.selected) .rotateHandle,.stickerItem:not(.selected) .stickerRemove{display:none}.rotateHandle{position:absolute;right:-20px;top:-20px;width:34px;height:34px;border:0;background:transparent;color:#1685e5;font-size:28px;line-height:34px;text-align:center;font-weight:900;text-shadow:0 1px 2px #fff,0 0 3px #fff;pointer-events:auto;touch-action:none;user-select:none}.stickerRemove{position:absolute;left:-20px;top:-20px;width:34px;height:34px;border:0;background:transparent;color:#e53935;font-size:30px;line-height:34px;text-align:center;font-weight:900;text-shadow:0 1px 2px #fff,0 0 3px #fff;pointer-events:auto;touch-action:none}.stickerRow{display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center;margin:12px 0;font-weight:800}.stickerRow input{width:100%;min-width:0;font-size:13px}.layerRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.layerRow button{padding:10px 8px;font-size:14px}.layerRow button:disabled{opacity:.4;cursor:default}.stickerSizeBtn{display:block;width:100%;height:42px;border:1px solid #d7e1ec;border-radius:12px;background:#f4f8fc;color:#182b55;font-size:30px;font-weight:900;line-height:1;padding:0;margin:8px 0;touch-action:manipulation}.stickerSizeBtn:active{background:#e7eef7}.standardStickerGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}.standardStickerBtn{border:1px solid #ead7ea;background:#fff;border-radius:12px;padding:5px;min-width:0;cursor:pointer}.standardStickerBtn img{display:block;width:100%;height:82px;object-fit:contain;background:#fff;border-radius:8px}.standardStickerBtn span{display:block;font-size:10px;font-weight:800;color:#5a4868;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}@media(max-width:800px){.standardStickerGrid{grid-template-columns:repeat(4,1fr);gap:6px}.standardStickerBtn{padding:3px}.standardStickerBtn img{height:72px}}.actionRow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.actionRow button{width:100%;min-width:0;padding:11px 5px;font-size:13px;white-space:nowrap}.shareRow{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}.shareRow button{width:100%;min-width:0;padding:11px 5px;font-size:13px;white-space:nowrap}.share{background:#1685e5}.#previewCanvas{display:block;width:100%;max-width:620px;height:auto;border:2px solid #d7e1ec;border-radius:18px;margin:14px auto 0;background:#fff;box-shadow:0 8px 20px #00000012}
+.composeWrap{position:relative;width:100%;max-width:620px;margin:14px auto 0;touch-action:none}.composeWrap #composeCanvas{margin:0;position:relative;z-index:0}.stickerLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:18px;z-index:2}.qrLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:18px;z-index:9999}.qrLayer canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.stickerLayer #textCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}.stickerItem{position:absolute;left:0;top:0;width:120px;height:120px;transform-origin:center center;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:move}.stickerItem img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none}.stickerItem.selected{outline:1px dashed #1685e5;outline-offset:3px}.stickerItem:not(.selected) .rotateHandle,.stickerItem:not(.selected) .stickerRemove{display:none}.rotateHandle{position:absolute;right:-20px;top:-20px;width:34px;height:34px;border:0;background:transparent;color:#1685e5;font-size:28px;line-height:34px;text-align:center;font-weight:900;text-shadow:0 1px 2px #fff,0 0 3px #fff;pointer-events:auto;touch-action:none;user-select:none}.stickerRemove{position:absolute;left:-20px;top:-20px;width:34px;height:34px;border:0;background:transparent;color:#e53935;font-size:30px;line-height:34px;text-align:center;font-weight:900;text-shadow:0 1px 2px #fff,0 0 3px #fff;pointer-events:auto;touch-action:none}.stickerRow{display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center;margin:12px 0;font-weight:800}.stickerRow input{width:100%;min-width:0;font-size:13px}.layerRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.layerRow button{padding:10px 8px;font-size:14px}.layerRow button:disabled{opacity:.4;cursor:default}.stickerSizeBtn{display:block;width:100%;height:42px;border:1px solid #d7e1ec;border-radius:12px;background:#f4f8fc;color:#182b55;font-size:30px;font-weight:900;line-height:1;padding:0;margin:8px 0;touch-action:manipulation}.stickerSizeBtn:active{background:#e7eef7}.standardStickerGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}.standardStickerBtn{border:1px solid #ead7ea;background:#fff;border-radius:12px;padding:5px;min-width:0;cursor:pointer}.standardStickerBtn img{display:block;width:100%;height:82px;object-fit:contain;background:#fff;border-radius:8px}.standardStickerBtn span{display:block;font-size:10px;font-weight:800;color:#5a4868;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}@media(max-width:800px){.standardStickerGrid{grid-template-columns:repeat(4,1fr);gap:6px}.standardStickerBtn{padding:3px}.standardStickerBtn img{height:72px}}.actionRow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.actionRow button{width:100%;min-width:0;padding:11px 5px;font-size:13px;white-space:nowrap}.shareRow{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}.shareRow button{width:100%;min-width:0;padding:11px 5px;font-size:13px;white-space:nowrap}.share{background:#1685e5}.#previewCanvas{display:block;width:100%;max-width:620px;height:auto;border:2px solid #d7e1ec;border-radius:18px;margin:14px auto 0;background:#fff;box-shadow:0 8px 20px #00000012}
 #recognized{font-size:22px;min-height:80px;white-space:pre-wrap}
 .bad{color:#b00020;font-weight:700}.ok{color:#176b2c;font-weight:700}
 .topCreateGrid{display:flex;flex-direction:column;width:100%;gap:14px}.createMain,.backgroundPanel{min-width:0;width:100%}.backgroundPanel{overflow:hidden}.controls{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.controlBox{border:1px solid #d9e3ef;border-radius:15px;padding:13px;background:#fbfdff}
@@ -36,9 +36,8 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 @media(max-width:800px){.layoutGrid{grid-template-columns:1fr}.createMain textarea{min-height:170px}.controls{grid-template-columns:1fr}.bgGrid{grid-template-columns:repeat(4,1fr);gap:8px}.bgLabel{font-size:10px}.topCreateGrid .controlBox{padding:12px}.topCreateGrid .range,.topCreateGrid .posRange{grid-template-columns:62px minmax(0,1fr) 64px;gap:8px}.topCreateGrid .numInput{width:64px;height:38px;font-size:15px}.topCreateGrid .range span,.topCreateGrid .posRange output{display:none}.topCreateGrid .check{font-size:13px;gap:7px}.topCreateGrid .check input{width:19px;height:19px}main{padding:10px}.panel{padding:13px;border-radius:18px}.backgroundPanel{padding:12px}.backgroundPanel .badge{font-size:12px;padding:5px 9px}}
 </style>
 <style id="sticker-layer-fix">
-/* v37: スタンプをQRコードより下の背面レイヤーへ */
-#stickerCanvas, .sticker-canvas { z-index: 10 !important; }
-#qrCanvas, .qr-canvas, #qrcode, .qrcode { z-index: 20 !important; }
+/* v39: QRコードは常に最前面（スタンプより上） */
+#qrLayer, #qrCanvas { z-index: 9999 !important; }
 </style>
 
 </head>
@@ -65,7 +64,7 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
       <div class="colorRow"><label>文字色</label><div id="colorGrid" class="colorGrid" aria-label="文字色を選択"></div></div>
       <label class="check"><input id="useOutline" type="checkbox" checked> 白いアウトラインをつける</label>
       <div class="range outlineRange"><label for="outlineSize">白フチ</label><input id="outlineSize" type="range" min="0" max="10" step="1" value="3"><span id="outlineSizev">3</span><input id="outlineSizeNum" class="numInput" type="number" min="0" max="10" step="1" value="3" aria-label="白フチの太さ"></div>
-      <label class="check"><input id="useQR" type="checkbox" checked> QRコードをつける（左下）</label>
+      <label class="check"><input id="useQR" type="checkbox" checked> QRコードをつける（左下・常に最前面）</label>
       <label class="check"><input id="useBG" type="checkbox" checked> 背景をつける</label>
     </div>
   </div>
@@ -74,7 +73,7 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 
 <section class="panel">
 <div class="badge">完成イメージ</div>
-<div class="composeWrap"><canvas id="composeCanvas" width="1200" height="1200"></canvas><div id="stickerLayer" class="stickerLayer"><canvas id="textCanvas" width="1200" height="1200"></canvas></div></div>
+<div class="composeWrap"><canvas id="composeCanvas" width="1200" height="1200"></canvas><div id="stickerLayer" class="stickerLayer"><canvas id="textCanvas" width="1200" height="1200"></canvas></div><div id="qrLayer" class="qrLayer"><canvas id="qrCanvas" width="1200" height="1200"></canvas></div></div>
 </section>
 
 <section class="panel stickerPanel">
@@ -105,6 +104,8 @@ const posXv=document.getElementById('posXv'), posYv=document.getElementById('pos
 const posXNum=document.getElementById('posXNum'), posYNum=document.getElementById('posYNum');
 const composeCanvas=document.getElementById('composeCanvas');
 const ctx=composeCanvas.getContext('2d');
+const qrCanvas=document.getElementById('qrCanvas');
+const qrCtx=qrCanvas.getContext('2d');
 const textCanvas=document.getElementById('textCanvas');
 const textCtx=textCanvas.getContext('2d');
 const bgGrid=document.getElementById('bgGrid');
@@ -248,12 +249,13 @@ async function renderComposition(){
   ctx.imageSmoothingEnabled=false; textCtx.imageSmoothingEnabled=false;
   await drawBackground();
   if(myId!==renderSeq)return;
-  if(useQR.checked){
-    const qrSize=230, qx=105, qy=1200-105-qrSize;
-    await drawRecoveryQR(ctx,input.value,qx,qy,qrSize);
-  }
+  qrCtx.clearRect(0,0,1200,1200);
   await drawTextAndQR(layout,false,myId);
   if(myId!==renderSeq)return;
+  if(useQR.checked){
+    const qrSize=230, qx=105, qy=1200-105-qrSize;
+    await drawRecoveryQR(qrCtx,input.value,qx,qy,qrSize);
+  }
   updateLayerVisuals();
 }
 input.oninput=renderComposition;
@@ -627,6 +629,8 @@ async function makePngData(){
     if(layer==='text') ec.drawImage(textCanvas,0,0);
     else drawStickerToCanvas(ec,layer);
   }
+  // QR is a fixed top-most layer: always composite it after text and stickers.
+  if(useQR.checked) ec.drawImage(qrCanvas,0,0);
   const baseData=exportCanvas.toDataURL('image/png');
   return addTamagotchiMetadata(baseData,input.value,Number(size.value));
 }
