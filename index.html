@@ -35,20 +35,64 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 .badge{display:inline-block;background:#e9f5ff;color:#1268ae;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:800;margin-bottom:8px}
 @media(max-width:800px){.layoutGrid{grid-template-columns:1fr}.createMain textarea{min-height:170px}.controls{grid-template-columns:1fr}.bgGrid{grid-template-columns:repeat(4,1fr);gap:8px}.bgLabel{font-size:10px}.topCreateGrid .controlBox{padding:12px}.topCreateGrid .range,.topCreateGrid .posRange{grid-template-columns:62px minmax(0,1fr) 64px;gap:8px}.topCreateGrid .numInput{width:64px;height:38px;font-size:15px}.topCreateGrid .range span,.topCreateGrid .posRange output{display:none}.topCreateGrid .check{font-size:13px;gap:7px}.topCreateGrid .check input{width:19px;height:19px}main{padding:10px}.panel{padding:13px;border-radius:18px}.backgroundPanel{padding:12px}.backgroundPanel .badge{font-size:12px;padding:5px 9px}}
 
-/* v41: GitHubフォルダ自動取得 + 横スワイプ */
+/* v42: GitHubフォルダ自動取得 + 横スワイプ（サイズ固定） */
 #bgGrid, #standardStickerGrid{
   display:flex !important;
+  flex-direction:row !important;
   flex-wrap:nowrap !important;
   overflow-x:auto !important;
   overflow-y:hidden !important;
-  gap:10px;
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+  gap:10px !important;
   -webkit-overflow-scrolling:touch;
   scroll-snap-type:x proximity;
-  padding-bottom:6px;
+  padding:4px 2px 8px !important;
+  box-sizing:border-box !important;
 }
 #bgGrid > button, #standardStickerGrid > button{
-  flex:0 0 auto;
+  flex:0 0 118px !important;
+  width:118px !important;
+  min-width:118px !important;
+  max-width:118px !important;
+  height:118px !important;
+  min-height:118px !important;
+  max-height:118px !important;
+  box-sizing:border-box !important;
   scroll-snap-align:start;
+  overflow:hidden !important;
+}
+#bgGrid > button img{
+  display:block !important;
+  width:100% !important;
+  height:82px !important;
+  max-width:100% !important;
+  max-height:82px !important;
+  aspect-ratio:auto !important;
+  object-fit:cover !important;
+}
+#standardStickerGrid > button img{
+  display:block !important;
+  width:100% !important;
+  height:72px !important;
+  max-width:100% !important;
+  max-height:72px !important;
+  aspect-ratio:auto !important;
+  object-fit:contain !important;
+}
+@media(max-width:800px){
+  #bgGrid > button, #standardStickerGrid > button{
+    flex-basis:105px !important;
+    width:105px !important;
+    min-width:105px !important;
+    max-width:105px !important;
+    height:112px !important;
+    min-height:112px !important;
+    max-height:112px !important;
+  }
+  #bgGrid > button img{height:78px !important;max-height:78px !important;}
+  #standardStickerGrid > button img{height:68px !important;max-height:68px !important;}
 }
 .folderLoadStatus{font-size:12px;opacity:.65;margin:4px 0 6px;}
 </style>
@@ -196,6 +240,20 @@ function setFolderStatus(id,text){
   const el=document.getElementById(id); if(el) el.textContent=text||'';
 }
 async function fetchPngFiles(folder){
+  // v42: GitHub APIに依存せず、同じGitHub Pages上の自動生成manifestを優先。
+  const manifestUrl=folder+'/index.json?v='+Date.now();
+  try{
+    const r=await fetch(manifestUrl,{cache:'no-store'});
+    if(r.ok){
+      const data=await r.json();
+      if(Array.isArray(data)){
+        return data.filter(x=>typeof x==='string' && /\.png$/i.test(x))
+          .map(name=>({name,download_url:folder+'/'+encodeURIComponent(name)}))
+          .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+      }
+    }
+  }catch(e){}
+  // manifestがまだ無い/古い場合だけGitHub APIへフォールバック。
   const res=await fetch(GITHUB_REPO_API+folder,{cache:'no-store'});
   if(!res.ok) throw new Error('GitHub API '+res.status);
   const data=await res.json();
@@ -216,8 +274,8 @@ async function initBG(){
     const files=await fetchPngFiles('backgrounds');
     const existing=new Set(BG_LIST.map(x=>x[0]+'.png'));
     for(const f of files){ if(existing.has(f.name)) continue; addBGButton(f.download_url || ('backgrounds/'+f.name),fileLabel(f.name)); }
-    setFolderStatus('bgFolderStatus',`${files.length}個のPNGを検出`);
-  }catch(e){ setFolderStatus('bgFolderStatus','追加背景の自動取得に失敗しました（標準背景は使用できます）'); }
+    setFolderStatus('bgFolderStatus',`${files.length}個のPNGを自動取得`);
+  }catch(e){ setFolderStatus('bgFolderStatus','追加背景の自動取得に失敗しました（標準背景のみ表示）'); }
 }
 initBG();
 const STANDARD_STICKERS=[
@@ -248,8 +306,8 @@ async function initStandardStickers(){
       b.onclick=()=>{ const x=new Image(); x.onload=()=>addSticker(x,label); x.src=src; };
       grid.appendChild(b);
     }
-    setFolderStatus('stickerFolderStatus',`${files.length}個のPNGを検出`);
-  }catch(e){ setFolderStatus('stickerFolderStatus','追加スタンプの自動取得に失敗しました（標準スタンプは使用できます）'); }
+    setFolderStatus('stickerFolderStatus',`${files.length}個のPNGを自動取得`);
+  }catch(e){ setFolderStatus('stickerFolderStatus','追加スタンプの自動取得に失敗しました（標準スタンプのみ表示）'); }
 }
 initStandardStickers();
 bgFile.onchange=e=>{const f=e.target.files[0];if(!f)return;const u=URL.createObjectURL(f);const im=new Image();im.onload=()=>{customBG=im;selectedBG=null;document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));renderComposition()};im.src=u;};
@@ -942,6 +1000,7 @@ renderComposition();
 // Render the composition once on startup.
 renderComposition();
 </script>
+<!-- v42: asset manifests are maintained automatically by .github/workflows/update-asset-index.yml -->
 <script id="sticker-layer-fix-js">
 (function(){
   function applyStickerBehindQR(){
