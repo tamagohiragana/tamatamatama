@@ -34,6 +34,23 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 .layoutGrid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
 .badge{display:inline-block;background:#e9f5ff;color:#1268ae;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:800;margin-bottom:8px}
 @media(max-width:800px){.layoutGrid{grid-template-columns:1fr}.createMain textarea{min-height:170px}.controls{grid-template-columns:1fr}.bgGrid{grid-template-columns:repeat(4,1fr);gap:8px}.bgLabel{font-size:10px}.topCreateGrid .controlBox{padding:12px}.topCreateGrid .range,.topCreateGrid .posRange{grid-template-columns:62px minmax(0,1fr) 64px;gap:8px}.topCreateGrid .numInput{width:64px;height:38px;font-size:15px}.topCreateGrid .range span,.topCreateGrid .posRange output{display:none}.topCreateGrid .check{font-size:13px;gap:7px}.topCreateGrid .check input{width:19px;height:19px}main{padding:10px}.panel{padding:13px;border-radius:18px}.backgroundPanel{padding:12px}.backgroundPanel .badge{font-size:12px;padding:5px 9px}}
+
+/* v41: GitHubフォルダ自動取得 + 横スワイプ */
+#bgGrid, #standardStickerGrid{
+  display:flex !important;
+  flex-wrap:nowrap !important;
+  overflow-x:auto !important;
+  overflow-y:hidden !important;
+  gap:10px;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;
+  padding-bottom:6px;
+}
+#bgGrid > button, #standardStickerGrid > button{
+  flex:0 0 auto;
+  scroll-snap-align:start;
+}
+.folderLoadStatus{font-size:12px;opacity:.65;margin:4px 0 6px;}
 </style>
 <style id="sticker-layer-fix">
 /* v39: QRコードは常に最前面（スタンプより上） */
@@ -48,7 +65,7 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 <div class="topCreateGrid">
   <div class="backgroundPanel controlBox">
     <div class="badge">① 背景を選ぶ</div>
-    <div id="bgGrid" class="bgGrid"></div>
+    <div id="bgFolderStatus" class="folderLoadStatus"></div><div id="bgGrid" class="bgGrid"></div>
     <label class="small" style="display:block;margin-top:10px">オリジナル背景PNGを追加： <input id="bgFile" type="file" accept="image/png,image/jpeg,image/webp"></label>
   </div>
 
@@ -79,7 +96,7 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 <section class="panel stickerPanel">
 <div class="badge">③ 透過PNGスタンプ</div>
 <button id="stickerSizeUp" class="stickerSizeBtn" type="button">↑</button>
-<div id="standardStickerGrid" class="standardStickerGrid"></div>
+<div id="stickerFolderStatus" class="folderLoadStatus"></div><div id="standardStickerGrid" class="standardStickerGrid"></div>
 <button id="stickerSizeDown" class="stickerSizeBtn" type="button">↓</button>
 <div class="stickerRow"><label for="stickerFile">オリジナルPNG</label><input id="stickerFile" type="file" accept="image/png,image/jpeg,image/webp"></div>
 <div id="stickerStatus" class="small"></div>
@@ -167,31 +184,72 @@ let selectedBG='backgrounds/blue.png';
 let customBG=null;
 const BG_LIST=[['blue','ブルー'],['pink','ピンク'],['mint','ミント'],['lemon','レモン'],['lavender','ラベンダー'],['sky','スカイ'],['night','ナイト'],['cream','クリーム']];
 const bgImages={};
-function initBG(){
+const GITHUB_REPO_API='https://api.github.com/repos/tamagohiragana/tamatamatama/contents/';
+const STANDARD_STICKER_LABELS={
+  'zutto_tomo.png':'ずっ友','choberiba.png':'チョベリバ','aiainigasa.png':'相合傘','saikoo.png':'サイコー',
+  'love.png':'LOVE','nakayoshi.png':'なかよし','uchira_saikyo.png':'うちら最強','issho_nakako.png':'一生仲仔♥'
+};
+function fileLabel(name){
+  return name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ');
+}
+function setFolderStatus(id,text){
+  const el=document.getElementById(id); if(el) el.textContent=text||'';
+}
+async function fetchPngFiles(folder){
+  const res=await fetch(GITHUB_REPO_API+folder,{cache:'no-store'});
+  if(!res.ok) throw new Error('GitHub API '+res.status);
+  const data=await res.json();
+  return Array.isArray(data) ? data.filter(x=>x.type==='file' && /\.png$/i.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})) : [];
+}
+function addBGButton(path,label,active=false){
+  const b=document.createElement('button');b.type='button';b.className='bgBtn'+(active?' active':'');
+  const im=document.createElement('img');im.src=path;im.alt=label;im.loading='lazy';
+  const sp=document.createElement('div');sp.className='bgLabel';sp.textContent=label;
+  b.append(im,sp);b.onclick=()=>{selectedBG=path;customBG=null;document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderComposition()};
+  bgGrid.appendChild(b); bgImages[path]=im;
+}
+async function initBG(){
   bgGrid.innerHTML='';
-  for(const [id,label] of BG_LIST){
-    const b=document.createElement('button');b.type='button';b.className='bgBtn'+(id==='blue'?' active':'');
-    const im=document.createElement('img');im.src='backgrounds/'+id+'.png';im.alt=label;
-    const sp=document.createElement('div');sp.className='bgLabel';sp.textContent=label;
-    b.append(im,sp);b.onclick=()=>{selectedBG='backgrounds/'+id+'.png';customBG=null;document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderComposition()};
-    bgGrid.appendChild(b); bgImages[id]=im;
-  }
+  // まず既存の標準背景を即表示（API失敗時も従来通り使える）
+  for(const [id,label] of BG_LIST) addBGButton('backgrounds/'+id+'.png',label,id==='blue');
+  try{
+    const files=await fetchPngFiles('backgrounds');
+    const existing=new Set(BG_LIST.map(x=>x[0]+'.png'));
+    for(const f of files){ if(existing.has(f.name)) continue; addBGButton(f.download_url || ('backgrounds/'+f.name),fileLabel(f.name)); }
+    setFolderStatus('bgFolderStatus',`${files.length}個のPNGを検出`);
+  }catch(e){ setFolderStatus('bgFolderStatus','追加背景の自動取得に失敗しました（標準背景は使用できます）'); }
 }
 initBG();
 const STANDARD_STICKERS=[
   ['stickers/zutto_tomo.png','ずっ友'],['stickers/choberiba.png','チョベリバ'],['stickers/aiainigasa.png','相合傘'],['stickers/saikoo.png','サイコー'],
   ['stickers/love.png','LOVE'],['stickers/nakayoshi.png','なかよし'],['stickers/uchira_saikyo.png','うちら最強'],['stickers/issho_nakako.png','一生仲仔♥']
 ];
-function initStandardStickers(){
+async function initStandardStickers(){
   const grid=document.getElementById('standardStickerGrid'); grid.innerHTML='';
+  // 既存8種を即表示
   for(const [src,label] of STANDARD_STICKERS){
     const b=document.createElement('button'); b.type='button'; b.className='standardStickerBtn';
     const im=new Image(); im.src=src; im.alt=label;
     const sp=document.createElement('span'); sp.textContent=label;
-    b.append(im,sp);
-    b.onclick=()=>{ const x=new Image(); x.onload=()=>addSticker(x,label); x.src=src; };
+    b.append(im,sp); b.onclick=()=>{ const x=new Image(); x.onload=()=>addSticker(x,label); x.src=src; };
     grid.appendChild(b);
   }
+  try{
+    const files=await fetchPngFiles('stickers');
+    const existing=new Set(STANDARD_STICKERS.map(x=>x[0].split('/').pop()));
+    for(const f of files){
+      if(existing.has(f.name)) continue;
+      const src=f.download_url || ('stickers/'+f.name);
+      const label=STANDARD_STICKER_LABELS[f.name] || fileLabel(f.name);
+      const b=document.createElement('button'); b.type='button'; b.className='standardStickerBtn';
+      const im=new Image(); im.src=src; im.alt=label; im.loading='lazy';
+      const sp=document.createElement('span'); sp.textContent=label;
+      b.append(im,sp);
+      b.onclick=()=>{ const x=new Image(); x.onload=()=>addSticker(x,label); x.src=src; };
+      grid.appendChild(b);
+    }
+    setFolderStatus('stickerFolderStatus',`${files.length}個のPNGを検出`);
+  }catch(e){ setFolderStatus('stickerFolderStatus','追加スタンプの自動取得に失敗しました（標準スタンプは使用できます）'); }
 }
 initStandardStickers();
 bgFile.onchange=e=>{const f=e.target.files[0];if(!f)return;const u=URL.createObjectURL(f);const im=new Image();im.onload=()=>{customBG=im;selectedBG=null;document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));renderComposition()};im.src=u;};
