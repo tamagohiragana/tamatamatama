@@ -1,0 +1,41 @@
+name: Update asset indexes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'stickers/**'
+      - 'backgrounds/**'
+
+permissions:
+  contents: write
+
+jobs:
+  update-indexes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate PNG indexes
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          for folder in ('stickers','backgrounds'):
+              p=Path(folder)
+              files=sorted([x.name for x in p.iterdir() if x.is_file() and x.suffix.lower()=='.png'], key=str.casefold)
+              (p/'index.json').write_text(json.dumps(files, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
+          PY
+
+      - name: Commit generated indexes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add stickers/index.json backgrounds/index.json
+          if git diff --cached --quiet; then
+            echo 'No index changes.'
+          else
+            git commit -m 'chore: update PNG asset indexes'
+            git push
+          fi
