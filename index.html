@@ -232,36 +232,77 @@ async function drawBackground(){
 }
 function drawGlyph(ctx,im,x,y,fs,color,outline){
   if(!im)return;
+
   /*
-   * v40.1: 文字PNGのRGB/αをそのまま保持。
-   * 黒・白・透明の3状態を維持する。
-   * 以前の source-in + fillStyle=color は白をtextColorで塗り替えていたため廃止。
+   * v40.2:
+   * PNGは「黒・白・透明」の3状態。
+   * 色変更は黒い部分だけに適用し、白は白のまま、透明は透明のままにする。
    */
   const outlinePx=Number(document.getElementById('outlineSize')?.value||3);
   const r=outline&&outlinePx>0?outlinePx:0;
   const d=r;
   const w=Math.ceil(fs+d*2), h=Math.ceil(fs+d*2);
-  const temp=document.createElement('canvas');temp.width=w;temp.height=h;
-  const t=temp.getContext('2d');t.imageSmoothingEnabled=false;
 
+  const temp=document.createElement('canvas');
+  temp.width=w; temp.height=h;
+  const t=temp.getContext('2d');
+  t.imageSmoothingEnabled=false;
+
+  // アウトラインは従来どおり白
   if(outline){
     t.globalAlpha=1;
     for(let oy=-d;oy<=d;oy++) for(let ox=-d;ox<=d;ox++){
       if(ox*ox+oy*oy<=d*d+1) t.drawImage(im,d+ox,d+oy,fs,fs);
     }
-    // 外周は白。ただし元の文字本体の白/黒は変更しない。
     t.globalCompositeOperation='source-in';
     t.fillStyle='#fff';
     t.fillRect(0,0,w,h);
     t.globalCompositeOperation='destination-over';
-    t.drawImage(im,d,d,fs,fs);
-    t.globalCompositeOperation='source-over';
-  }else{
-    // PNGを完全にそのまま描画（白・黒・透明を保持）
-    t.drawImage(im,d,d,fs,fs);
   }
+
+  // 元PNGを一度描画して取得
+  const glyph=document.createElement('canvas');
+  glyph.width=Math.ceil(fs);
+  glyph.height=Math.ceil(fs);
+  const g=glyph.getContext('2d',{willReadFrequently:true});
+  g.imageSmoothingEnabled=false;
+  g.drawImage(im,0,0,fs,fs);
+
+  const image=g.getImageData(0,0,glyph.width,glyph.height);
+  const px=image.data;
+
+  // 黒系ピクセルだけを指定色に変更。
+  // 白系ピクセルはRGBを変更しない。透明も変更しない。
+  const probe=document.createElement('canvas').getContext('2d');
+  probe.fillStyle=color || '#000000';
+  probe.fillRect(0,0,1,1);
+  const cd=probe.getImageData(0,0,1,1).data;
+  const cr=cd[0], cg=cd[1], cb=cd[2];
+
+  for(let i=0;i<px.length;i+=4){
+    const a=px[i+3];
+    if(a===0) continue;
+
+    const lum=0.299*px[i]+0.587*px[i+1]+0.114*px[i+2];
+
+    if(lum < 180){
+      // 黒～濃いグレーだけ色変更。
+      // 元のα（アンチエイリアス）を保持。
+      px[i]=cr;
+      px[i+1]=cg;
+      px[i+2]=cb;
+    }
+    // lum >= 180 は白系として元RGBを完全保持
+  }
+
+  g.putImageData(image,0,0);
+
+  // 本体を描画。アウトラインがある場合は白アウトラインの上に本体を重ねる。
+  t.globalCompositeOperation='source-over';
+  t.drawImage(glyph,d,d);
   ctx.drawImage(temp,x-d,y-d);
 }
+
 async function drawTextAndQR(layout,forSave=false,renderId=0){
   const fs=layout.fs; let y=layout.top;
   const cache={};
