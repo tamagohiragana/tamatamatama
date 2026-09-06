@@ -40,17 +40,10 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 #qrLayer, #qrCanvas { z-index: 9999 !important; }
 </style>
 
-
-<style id="v40-swipe-css">
-.v40-swipe-strip{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:8px 2px}
-.v40-swipe-item{flex:0 0 auto;scroll-snap-align:center;border:2px solid transparent;border-radius:10px;background:#fff;padding:3px}
-.v40-swipe-item img{display:block;width:72px;height:72px;object-fit:contain;border-radius:7px}
-.v40-swipe-item.active{border-color:#1685e5}
-</style>
 </head>
 <body><main>
 <h1>🥚 たまごっち文字画像作成ツール</h1>
-<p class="lead">ひらがなを入力して、たまごっち文字の「正方形・便箋風PNG」を作れます。改行・段落を保ったまま、QRコードから元の文章も復元できます。</p>
+<p class="lead">ひらがなを入力して、たまごっち文字の「正方形・便箋風PNG」を作れます。改行・段落を保ったまま、QRコードから元の文章も復元できます。</p><p class="hint">追加文字：数字 0～9・英字 A～Z / a～z はファイル名をそのまま使用。記号はUnicodeコードポイント名のPNGを使用します。</p>
 <section class="panel">
 <div class="topCreateGrid">
   <div class="backgroundPanel controlBox">
@@ -104,6 +97,38 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 </main>
 <script>
 const MAP={"ね": "glyphs/ね.png", "ぶ": "glyphs/ぶ.png", "ぎ": "glyphs/ぎ.png", "ど": "glyphs/ど.png", "ゆ": "glyphs/ゆ.png", "ざ": "glyphs/ざ.png", "も": "glyphs/も.png", "と": "glyphs/と.png", "し": "glyphs/し.png", "ゎ": "glyphs/ゎ.png", "ょ": "glyphs/ょ.png", "ま": "glyphs/ま.png", "げ": "glyphs/げ.png", "ぺ": "glyphs/ぺ.png", "ぼ": "glyphs/ぼ.png", "ぢ": "glyphs/ぢ.png", "り": "glyphs/り.png", "へ": "glyphs/へ.png", "ぜ": "glyphs/ぜ.png", "ろ": "glyphs/ろ.png", "は": "glyphs/は.png", "づ": "glyphs/づ.png", "ず": "glyphs/ず.png", "ぃ": "glyphs/ぃ.png", "〜": "glyphs/〜.png", "く": "glyphs/く.png", "よ": "glyphs/よ.png", "お": "glyphs/お.png", "に": "glyphs/に.png", "ぅ": "glyphs/ぅ.png", "き": "glyphs/き.png", "じ": "glyphs/じ.png", "む": "glyphs/む.png", "ほ": "glyphs/ほ.png", "い": "glyphs/い.png", "せ": "glyphs/せ.png", "だ": "glyphs/だ.png", "れ": "glyphs/れ.png", "た": "glyphs/た.png", "ぞ": "glyphs/ぞ.png", "ご": "glyphs/ご.png", "で": "glyphs/で.png", "ひ": "glyphs/ひ.png", "す": "glyphs/す.png", "ぴ": "glyphs/ぴ.png", "ぐ": "glyphs/ぐ.png", "や": "glyphs/や.png", "ぬ": "glyphs/ぬ.png", "め": "glyphs/め.png", "つ": "glyphs/つ.png", "ぱ": "glyphs/ぱ.png", "っ": "glyphs/っ.png", "て": "glyphs/て.png", "が": "glyphs/が.png", "な": "glyphs/な.png", "ん": "glyphs/ん.png", "べ": "glyphs/べ.png", "わ": "glyphs/わ.png", "ぷ": "glyphs/ぷ.png", "ぇ": "glyphs/ぇ.png", "ち": "glyphs/ち.png", "ぉ": "glyphs/ぉ.png", "ぁ": "glyphs/ぁ.png", "そ": "glyphs/そ.png", "ら": "glyphs/ら.png", "の": "glyphs/の.png", "み": "glyphs/み.png", "ー": "glyphs/ー.png", "さ": "glyphs/さ.png", "る": "glyphs/る.png", "を": "glyphs/を.png", "ゅ": "glyphs/ゅ.png", "ぽ": "glyphs/ぽ.png", "ば": "glyphs/ば.png", "あ": "glyphs/あ.png", "え": "glyphs/え.png", "う": "glyphs/う.png", "ふ": "glyphs/ふ.png", "ゃ": "glyphs/ゃ.png", "こ": "glyphs/こ.png", "か": "glyphs/か.png", "び": "glyphs/び.png", "け": "glyphs/け.png"};
+
+/*
+ * v40: 追加文字マップ
+ * 既存の50音MAPは一切変更しない。
+ *
+ * 0-9 / A-Z / a-z : ファイル名をそのまま使用
+ * 記号             : Unicodeコードポイント（16進）.png
+ *
+ * 例:
+ *   0 -> glyphs/0.png
+ *   A -> glyphs/A.png
+ *   a -> glyphs/a.png
+ *   ! -> glyphs/0021.png
+ *   ? -> glyphs/003F.png
+ */
+const EXTRA_GLYPH_MAP = {};
+for (const ch of '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz') {
+  EXTRA_GLYPH_MAP[ch] = 'glyphs/' + ch + '.png';
+}
+const EXTRA_SYMBOLS = {
+  '!':'0021','"':'0022','#':'0023','$':'0024','%':'0025','&':'0026',
+  "'":'0027','(':'0028',')':'0029','*':'002A','+':'002B',',':'002C',
+  '-':'002D','.':'002E','/':'002F',':':'003A',';':'003B','<':'003C',
+  '=':'003D','>':'003E','?':'003F','@':'0040','[':'005B','\\':'005C',
+  ']':'005D','^':'005E','_':'005F','`':'0060','{':'007B','|':'007C',
+  '}':'007D','~':'007E'
+};
+for (const [ch, code] of Object.entries(EXTRA_SYMBOLS)) {
+  EXTRA_GLYPH_MAP[ch] = 'glyphs/' + code + '.png';
+}
+Object.assign(MAP, EXTRA_GLYPH_MAP);
+
 const input=document.getElementById('input');
 const size=document.getElementById('size'), sizev=document.getElementById('sizev'), sizeNum=document.getElementById('sizeNum');
 const posX=document.getElementById('posX'), posY=document.getElementById('posY');
@@ -829,27 +854,4 @@ renderComposition();
 })();
 </script>
 
-
-<script id="v40-swipe-js">
-/* v40: static GitHub Pages向けPNGローダー。index.jsonに列挙したPNGを横スワイプ表示 */
-window.v40LoadPngFolder = async function(folder){
-  try{
-    const r=await fetch(folder+'/index.json',{cache:'no-store'});
-    if(!r.ok) return [];
-    const data=await r.json();
-    const names=Array.isArray(data)?data:[].concat(...Object.values(data).filter(Array.isArray));
-    return names.map(n=>new URL(folder+'/'+n,location.href).href);
-  }catch(e){ console.warn('v40 PNG load:',folder,e); return []; }
-};
-window.v40MakeSwipeStrip=function(urls,onSelect){
-  const box=document.createElement('div'); box.className='v40-swipe-strip';
-  urls.forEach((url,i)=>{
-    const b=document.createElement('button'); b.type='button'; b.className='v40-swipe-item';
-    const im=document.createElement('img'); im.src=url; im.loading='lazy'; b.appendChild(im);
-    b.onclick=()=>{box.querySelectorAll('.v40-swipe-item').forEach(x=>x.classList.remove('active'));b.classList.add('active');onSelect(url,i)};
-    box.appendChild(b);
-  });
-  return box;
-};
-</script>
 </body></html>
