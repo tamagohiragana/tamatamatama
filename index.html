@@ -232,7 +232,9 @@ const bgImages={};
 const GITHUB_REPO_API='https://api.github.com/repos/tamagohiragana/tamatamatama/contents/';
 const STANDARD_STICKER_LABELS={
   'zutto_tomo.png':'ずっ友','choberiba.png':'チョベリバ','aiainigasa.png':'相合傘','saikoo.png':'サイコー',
-  'love.png':'LOVE','nakayoshi.png':'なかよし','uchira_saikyo.png':'うちら最強','issho_nakako.png':'一生仲仔♥'
+  'love.png':'LOVE','nakayoshi.png':'なかよし','uchira_saikyo.png':'うちら最強','issho_nakako.png':'一生仲仔♥',
+  '夜路死苦.png':'夜路死苦','我等友情永久不滅.png':'我等友情永久不滅','我等愛情永久不滅.png':'我等愛情永久不滅',
+  '藁.png':'藁','02娘01.png':'02娘01'
 };
 function fileLabel(name){
   return name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ');
@@ -296,9 +298,22 @@ async function initStandardStickers(){
   try{
     const files=await fetchPngFiles('stickers');
     const existing=new Set(STANDARD_STICKERS.map(x=>x[0].split('/').pop()));
-    for(const f of files){
-      if(existing.has(f.name)) continue;
-      const src=f.download_url || ('stickers/'+f.name);
+    const customFiles=files.filter(f=>!existing.has(f.name));
+    const hasJapanese=s=>/[ぁ-ゖァ-ヺ一-龯々〆ヵヶ]/.test(s);
+    const hasLatin=s=>/[A-Za-z]/.test(s);
+    const hasDigit=s=>/[0-9]/.test(s);
+    const sortCustom=(a,b)=>{
+      const an=a.name.replace(/\.png$/i,'');
+      const bn=b.name.replace(/\.png$/i,'');
+      // 並び順：日本語 → 数字/日本語混在 → 英字 → 記号
+      const rank=s=>hasJapanese(s)?0:(hasDigit(s)&&!hasLatin(s)?1:(hasLatin(s)?2:3));
+      const ra=rank(an), rb=rank(bn);
+      if(ra!==rb) return ra-rb;
+      return an.localeCompare(bn,'ja',{numeric:true,sensitivity:'base'});
+    };
+    customFiles.sort(sortCustom);
+    for(const f of customFiles){
+      const src=f.download_url || ('stickers/'+encodeURIComponent(f.name));
       const label=STANDARD_STICKER_LABELS[f.name] || fileLabel(f.name);
       const b=document.createElement('button'); b.type='button'; b.className='standardStickerBtn';
       const im=new Image(); im.src=src; im.alt=label; im.loading='lazy';

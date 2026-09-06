@@ -12,3 +12,14 @@ v42からの主な変更
 
 配置：v42と同じくパッチ形式です。
 root/index.html を上書きし、backgrounds/index.json、stickers/index.json、.github/workflows/update-asset-index.yml を配置してください。
+
+
+【v43.2 日本語ファイル名対応・スタンプ5種追加】
+stickers/ にPNGを追加するだけで、GitHub Actionsが index.json を自動更新します。
+漢字・ひらがな・カタカナ・数字を含むファイル名にも対応しています。例：
+- 夜路死苦.png
+- 我等友情永久不滅.png
+- 我等愛情永久不滅.png
+- 藁.png
+- 02娘01.png
+index.json は通常手動編集不要です。
