@@ -1051,23 +1051,31 @@ async function sha256Hex(str){
   const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
   return Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,'0')).join('');
 }
-function postToShareServer(data){
-  return new Promise((resolve,reject)=>{
-    const frame=document.createElement('iframe');frame.name='tamaShareFrame_'+Date.now()+'_'+Math.random().toString(36).slice(2);frame.style.display='none';document.body.appendChild(frame);
-    const form=document.createElement('form');form.method='POST';form.action=SHARE_SERVER_URL;form.target=frame.name;form.style.display='none';
-    const inputEl=document.createElement('textarea');inputEl.name='data';inputEl.value=JSON.stringify(data);form.appendChild(inputEl);document.body.appendChild(form);
-    let done=false;
-    const cleanup=()=>{window.removeEventListener('message',onMessage);form.remove();setTimeout(()=>frame.remove(),1000)};
-    const timer=setTimeout(()=>{if(done)return;done=true;cleanup();reject(new Error('サーバーへの保存がタイムアウトしました'))},30000);
-    function onMessage(ev){
-      const d=ev.data||{};
-      if(d.type!=='TAMA_SHARE_SAVED')return;
-      if(done)return;done=true;clearTimeout(timer);cleanup();
-      if(d.ok&&d.id)resolve(d.id);else reject(new Error(d.error||'サーバー保存に失敗しました'));
-    }
-    window.addEventListener('message',onMessage);
-    try{form.submit()}catch(e){clearTimeout(timer);cleanup();reject(e)}
-  });
+function createClientShareId(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes=new Uint8Array(10);
+  if(window.crypto?.getRandomValues)crypto.getRandomValues(bytes);
+  else for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);
+  return Array.from(bytes,b=>chars[b%chars.length]).join('');
+}
+async function postToShareServer(data){
+  const id=createClientShareId();
+  const body=new URLSearchParams();
+  body.set('id',id);
+  body.set('data',JSON.stringify(data));
+  // Cross-origin Apps Script POST: send as a simple form request so no CORS
+  // preflight is required. The client already knows the generated ID.
+  await fetch(SHARE_SERVER_URL,{method:'POST',mode:'no-cors',body,cache:'no-store',keepalive:false});
+  // Confirm that Drive actually contains the record. GET uses JSONP, which
+  // Apps Script supports without a CORS response header.
+  let lastError=null;
+  for(let i=0;i<8;i++){
+    try{
+      await getShareFromServer(id,'');
+      return id;
+    }catch(e){lastError=e;await new Promise(r=>setTimeout(r,500));}
+  }
+  throw lastError||new Error('サーバー保存を確認できませんでした');
 }
 function getShareUrl(id){return APP_URL+'?share='+encodeURIComponent(id)}
 function drawShareQR(payload,px){
