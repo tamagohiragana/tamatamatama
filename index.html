@@ -1067,46 +1067,47 @@ async function postToShareServer(data){
   iframe.setAttribute('aria-hidden','true');
   document.body.appendChild(iframe);
 
-  return new Promise((resolve,reject)=>{
-    let done=false;
-    const timeout=setTimeout(()=>finish(new Error('サーバーへの保存がタイムアウトしました')),30000);
-    function cleanup(){
-      clearTimeout(timeout);
-      window.removeEventListener('message',onMessage);
-      setTimeout(()=>iframe.remove(),1000);
-    }
-    function finish(err){
-      if(done)return;
-      done=true;
-      cleanup();
-      if(err)reject(err); else resolve(id);
-    }
-    function onMessage(ev){
-      const d=ev && ev.data;
-      if(!d || d.type!=='TAMA_SHARE_SAVED')return;
-      if(d.ok && String(d.id||'').toUpperCase()===id) finish(null);
-      else finish(new Error(d.error||'サーバーへの保存に失敗しました'));
-    }
-    window.addEventListener('message',onMessage);
+  // Apps Script may redirect the POST response to a googleusercontent URL.
+  // Do not depend on postMessage from that response. Instead, submit the data
+  // and then verify the save by polling the already-working JSONP GET endpoint.
+  try{
+    const form=document.createElement('form');
+    form.method='POST';
+    form.action=SHARE_SERVER_URL;
+    form.target=frameName;
+    form.style.display='none';
+    const idInput=document.createElement('input');
+    idInput.name='id'; idInput.value=id;
+    const dataInput=document.createElement('textarea');
+    dataInput.name='data'; dataInput.value=JSON.stringify(data);
+    form.appendChild(idInput); form.appendChild(dataInput);
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(()=>form.remove(),2000);
+  }catch(e){
+    iframe.remove();
+    throw e;
+  }
 
+  const deadline=Date.now()+45000;
+  let lastErr='';
+  while(Date.now()<deadline){
     try{
-      const form=document.createElement('form');
-      form.method='POST';
-      form.action=SHARE_SERVER_URL;
-      form.target=frameName;
-      form.style.display='none';
-      const idInput=document.createElement('input');
-      idInput.name='id'; idInput.value=id;
-      const dataInput=document.createElement('textarea');
-      dataInput.name='data'; dataInput.value=JSON.stringify(data);
-      form.appendChild(idInput); form.appendChild(dataInput);
-      document.body.appendChild(form);
-      form.submit();
-      setTimeout(()=>form.remove(),1000);
+      await new Promise(r=>setTimeout(r,1200));
+      await getShareFromServer(id,'');
+      iframe.remove();
+      return id;
     }catch(e){
-      finish(e);
+      lastErr=e?.message||String(e);
+      // A password-required response also proves that the file exists.
+      if(/パスワードが必要/.test(lastErr)){
+        iframe.remove();
+        return id;
+      }
     }
-  });
+  }
+  iframe.remove();
+  throw new Error('サーバーへの保存を確認できませんでした：'+lastErr);
 }
 function getShareUrl(id){return APP_URL+'?share='+encodeURIComponent(id)}
 function drawShareQR(payload,px){
