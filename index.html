@@ -95,6 +95,8 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
   #standardStickerGrid > button img{height:68px !important;max-height:68px !important;}
 }
 .folderLoadStatus{font-size:12px;opacity:.65;margin:4px 0 6px;}
+
+.shareMetaRow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.shareMetaRow label{display:flex;align-items:center;gap:5px;font-size:13px}.shareMetaRow input{padding:8px;border:1px solid #ccc;border-radius:8px;min-width:120px}.shareMetaRow label:last-child{flex:1}.shareMetaRow label:last-child input{flex:1;min-width:180px}.shareQrPreview{display:block;width:100%;max-width:100%;height:auto;margin:12px 0;border:1px solid #eee;border-radius:10px;background:#fff}.fileBtn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#eee;cursor:pointer;font-size:13px}.fileBtn input{display:none}
 </style>
 <style id="sticker-layer-fix">
 /* v39: QRコードは常に最前面（スタンプより上） */
@@ -153,10 +155,13 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 <div class="layerRow"><button id="layerUp" type="button">↑ 前面へ</button><button id="layerDown" type="button">↓ 背面へ</button></div>
 <div class="actionRow"><button id="copy">ひらがなをコピー</button><button id="png" class="primary">PNG保存</button><button id="clear" class="gray">クリア</button></div><div class="shareRow"><button id="share" class="share">共有</button></div>
 <div class="shareCodeBox">
-  <div class="badge">共有コード</div>
-  <div class="small">今の文字・背景・スタンプの配置・反転・白枠などをコード化します。オリジナル背景／スタンプは画像データもコードに含めます。</div>
-  <div class="shareCodeRow"><button id="makeShareCode" type="button" class="share">共有コード作製</button><button id="loadShareCode" type="button" class="primary">共有コード読み込み</button></div>
-  <textarea id="shareCode" class="shareCodeInput" placeholder="ここに共有コードを貼り付け"></textarea>
+  <div class="badge">共有用・複式QRコード</div>
+  <div class="small">長い文字列は表示せず、圧縮データを複数のQRコードに分割します。下に日付とひとことを入れて、1枚の共有カードとして保存できます。</div>
+  <div class="shareMetaRow"><label>日付 <input id="shareDate" type="date"></label><label>ひとこと <input id="shareComment" type="text" maxlength="60" placeholder="例：今日つくった！"></label></div>
+  <div class="shareCodeRow"><button id="makeShareCode" type="button" class="share">複式QRコード作製</button><button id="saveShareQR" type="button" class="primary" disabled>QR画像を保存</button></div>
+  <canvas id="shareQrPreview" class="shareQrPreview"></canvas>
+  <div class="small">読み込み：この複式QRコード画像を選択すると、すべてのQRを集めて自動復元します。</div>
+  <div class="shareCodeRow"><label class="fileBtn">複式QR画像を読み込む<input id="shareQrFile" type="file" accept="image/png,image/jpeg,image/webp"></label></div>
   <div id="shareCodeStatus" class="small"></div>
 </div>
 </section>
@@ -968,10 +973,12 @@ async function sharePng(target){
 }
 document.getElementById('share').onclick=()=>sharePng('共有');
 
-// --- Share code -----------------------------------------------------------
-// v44.1: gzip/deflate + compact keys + URL-safe Base64.
-// Public repo assets are referenced by path; local images are embedded as PNG data.
-const SHARE_CODE_PREFIX='TAMA3:';
+// --- Multi-QR share card ---------------------------------------------------
+// v45: The share code is no longer shown as text. Compressed binary data is
+// split across multiple QR codes and rendered horizontally with date/comment.
+const SHARE_QR_PREFIX='TQ1|';
+let lastShareQrBlob=null;
+let lastShareQrObjectUrl=null;
 function shareAssetPath(src,folder){
   if(!src)return null;
   try{
@@ -991,42 +998,16 @@ function imageToDataURL(img){
       const c=document.createElement('canvas');
       c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
       if(!c.width||!c.height) throw new Error('画像サイズを取得できません');
-      c.getContext('2d').drawImage(img,0,0);
-      resolve(c.toDataURL('image/png'));
+      c.getContext('2d').drawImage(img,0,0); resolve(c.toDataURL('image/png'));
     }catch(e){reject(e)}
   });
 }
-function dataURLToB64(dataURL){
-  const i=dataURL.indexOf(',');
-  return i>=0?dataURL.slice(i+1):dataURL;
-}
-function b64ToDataURL(b64,mime='image/png'){
-  return 'data:'+mime+';base64,'+b64;
-}
-function bytesToB64Url(bytes){
-  let bin='';
-  for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
-  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-}
-function b64UrlToBytes(str){
-  str=str.replace(/-/g,'+').replace(/_/g,'/');
-  while(str.length%4)str+='=';
-  const bin=atob(str),out=new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);
-  return out;
-}
-async function gzipBytes(bytes){
-  if(!('CompressionStream' in window)) return null;
-  const cs=new CompressionStream('gzip');
-  const writer=cs.writable.getWriter(); writer.write(bytes); writer.close();
-  return new Uint8Array(await new Response(cs.readable).arrayBuffer());
-}
-async function gunzipBytes(bytes){
-  if(!('DecompressionStream' in window)) throw new Error('このブラウザは圧縮共有コードの読み込みに対応していません');
-  const ds=new DecompressionStream('gzip');
-  const writer=ds.writable.getWriter(); writer.write(bytes); writer.close();
-  return new Uint8Array(await new Response(ds.readable).arrayBuffer());
-}
+function dataURLToB64(dataURL){const i=dataURL.indexOf(',');return i>=0?dataURL.slice(i+1):dataURL}
+function b64ToDataURL(b64,mime='image/png'){return 'data:'+mime+';base64,'+b64}
+function bytesToB64Url(bytes){let bin='';for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function b64UrlToBytes(str){str=str.replace(/-/g,'+').replace(/_/g,'/');while(str.length%4)str+='=';const bin=atob(str),out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out}
+async function gzipBytes(bytes){if(!('CompressionStream' in window))return null;const cs=new CompressionStream('gzip');const w=cs.writable.getWriter();w.write(bytes);w.close();return new Uint8Array(await new Response(cs.readable).arrayBuffer())}
+async function gunzipBytes(bytes){if(!('DecompressionStream' in window))throw new Error('このブラウザは圧縮共有データの読み込みに対応していません');const ds=new DecompressionStream('gzip');const w=ds.writable.getWriter();w.write(bytes);w.close();return new Uint8Array(await new Response(ds.readable).arrayBuffer())}
 function textToBytes(str){return new TextEncoder().encode(str)}
 function bytesToText(bytes){return new TextDecoder().decode(bytes)}
 function makeShareStickerRecord(st){
@@ -1035,102 +1016,116 @@ function makeShareStickerRecord(st){
 }
 async function makeShareState(){
   const state={v:3,t:input.value,s:Number(size.value),x:Number(posX.value),y:Number(posY.value),c:textColor,o:!!useOutline.checked,os:Number(outlineSize.value),q:!!useQR.checked,b:!!useBG.checked,g:null,a:[],l:[]};
-  if(customBG){ state.g={p:null,d:dataURLToB64(await imageToDataURL(customBG))}; }
-  else { state.g={p:selectedBG||'backgrounds/blue.png',d:null}; }
-  for(const st of stickers){
-    const r=makeShareStickerRecord(st);
-    if(!r.p) r.d=dataURLToB64(await imageToDataURL(st.img));
-    state.a.push(r);
-  }
+  if(customBG)state.g={p:null,d:dataURLToB64(await imageToDataURL(customBG))};
+  else state.g={p:selectedBG||'backgrounds/blue.png',d:null};
+  for(const st of stickers){const r=makeShareStickerRecord(st);if(!r.p)r.d=dataURLToB64(await imageToDataURL(st.img));state.a.push(r)}
   state.l=layerOrder.map(x=>x==='text'?'t':stickers.indexOf(x));
   return state;
 }
-async function createShareCode(){
-  const status=document.getElementById('shareCodeStatus');
+function dateValue(){return document.getElementById('shareDate')?.value||new Date().toISOString().slice(0,10)}
+function formatDateJP(v){if(!v)return '';const a=v.split('-');return a.length===3?`${a[0]}/${a[1]}/${a[2]}`:v}
+async function makeSharePackage(){
+  const state=await makeShareState();
+  const wrapper={v:1,d:dateValue(),m:(document.getElementById('shareComment')?.value||'').slice(0,60),s:state};
+  const compressed=await gzipBytes(textToBytes(JSON.stringify(wrapper)));
+  if(!compressed)throw new Error('このブラウザは圧縮共有データに対応していません');
+  return compressed;
+}
+function drawOneShareQR(payload,px){
+  qrcode.stringToBytes=str=>Array.from(new TextEncoder().encode(str));
+  const qr=qrcode(0,'H');qr.addData(payload,'Byte');qr.make();
+  const count=qr.getModuleCount(), quiet=4, modules=count+quiet*2;
+  const size=px, mod=size/modules, c=document.createElement('canvas');c.width=c.height=size;
+  const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);ctx.fillStyle='#000';
+  for(let r=0;r<count;r++)for(let col=0;col<count;col++)if(qr.isDark(r,col))ctx.fillRect((col+quiet)*mod,(r+quiet)*mod,Math.ceil(mod)+.2,Math.ceil(mod)+.2);
+  return c;
+}
+async function createMultiQRCard(){
+  const status=document.getElementById('shareCodeStatus'), preview=document.getElementById('shareQrPreview');
   try{
-    status.textContent='共有コードを圧縮中…';
-    const state=await makeShareState();
-    const raw=textToBytes(JSON.stringify(state));
-    const compressed=await gzipBytes(raw);
-    if(!compressed) throw new Error('このブラウザは圧縮共有コードに対応していません');
-    const code=SHARE_CODE_PREFIX+bytesToB64Url(compressed);
-    const box=document.getElementById('shareCode'); box.value=code; box.focus(); box.select();
-    const rawLen=raw.length, codeLen=code.length;
-    try{await navigator.clipboard.writeText(code);status.textContent=`圧縮して作製しました（${codeLen.toLocaleString()}文字 / 圧縮前 ${rawLen.toLocaleString()}byte）。コピー済みです。`;}
-    catch(e){status.textContent=`圧縮して作製しました（${codeLen.toLocaleString()}文字）。長押し／選択してコピーしてください。`;}
-  }catch(e){console.error(e);status.textContent='共有コードを作製できませんでした：'+(e.message||e);}
+    status.textContent='共有データを圧縮しています…';
+    const bytes=await makeSharePackage();
+    // 700 raw bytes per QR keeps the payload comfortably inside high-error-correction QR sizes.
+    const chunkSize=700,total=Math.max(1,Math.ceil(bytes.length/chunkSize));
+    const id=Math.random().toString(36).slice(2,8).toUpperCase();
+    const qrs=[]; const qrPx=260;
+    for(let i=0;i<total;i++){
+      const chunk=bytes.slice(i*chunkSize,Math.min(bytes.length,(i+1)*chunkSize));
+      const payload=SHARE_QR_PREFIX+id+'|'+(i+1)+'|'+total+'|'+bytesToB64Url(chunk);
+      qrs.push(drawOneShareQR(payload,qrPx));
+    }
+    const gap=20,pad=28,top=pad,bottom=112;
+    const cardW=pad*2+total*qrPx+Math.max(0,total-1)*gap, cardH=pad+qrPx+bottom;
+    const out=document.createElement('canvas');out.width=cardW;out.height=cardH;const ctx=out.getContext('2d');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,cardW,cardH);
+    for(let i=0;i<qrs.length;i++)ctx.drawImage(qrs[i],pad+i*(qrPx+gap),top);
+    ctx.fillStyle='#222';ctx.textAlign='left';ctx.font='bold 24px sans-serif';ctx.fillText('たまごっち文字 共有QR',pad,qrPx+pad+36);
+    ctx.font='20px sans-serif';const date=formatDateJP(dateValue());const comment=document.getElementById('shareComment')?.value||'';
+    ctx.fillText(date,pad,qrPx+pad+70);
+    if(comment){ctx.textAlign='right';ctx.fillText(comment.slice(0,60),cardW-pad,qrPx+pad+70)}
+    preview.width=cardW;preview.height=cardH;preview.getContext('2d').drawImage(out,0,0);
+    lastShareQrBlob=await new Promise(res=>out.toBlob(res,'image/png'));
+    if(lastShareQrObjectUrl)URL.revokeObjectURL(lastShareQrObjectUrl);lastShareQrObjectUrl=URL.createObjectURL(lastShareQrBlob);
+    document.getElementById('saveShareQR').disabled=false;
+    status.textContent=`複式QRを作製しました：${total}個のQR（データ ${bytes.length.toLocaleString()} byte）。横一列で保存できます。`;
+  }catch(e){console.error(e);status.textContent='複式QRコードを作製できませんでした：'+(e.message||e)}
 }
-function imageFromSource(src){
-  return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('画像を読み込めません：'+src.slice(0,80)));im.src=src;});
+function saveMultiQR(){if(!lastShareQrBlob)return;downloadData(lastShareQrObjectUrl,'tamagotchi_share_qr.png')}
+function parseMultiQR(v){
+  if(typeof v!=='string'||!v.startsWith(SHARE_QR_PREFIX))return null;
+  const p=v.split('|');if(p.length<5)return null;const idx=Number(p[2]),total=Number(p[3]);if(!p[1]||!Number.isInteger(idx)||!Number.isInteger(total)||idx<1||idx>total)return null;
+  try{return {id:p[1],idx,total,bytes:b64UrlToBytes(p.slice(4).join('|'))}}catch(e){return null}
 }
-function normalizedAssetURL(path){
-  if(!path)return null;
-  if(path.startsWith('data:image/'))return path;
-  return path.split('?')[0]+'?v='+Date.now();
+async function decodeScannedShareParts(parts){
+  const groups=new Map();
+  for(const x of parts){const p=parseMultiQR(x);if(!p)continue;if(!groups.has(p.id))groups.set(p.id,{total:p.total,map:new Map()});const g=groups.get(p.id);if(g.total===p.total)g.map.set(p.idx,p.bytes)}
+  let best=null;for(const [id,g] of groups){if(!best||g.map.size>best.map.size)best={id,...g}}
+  if(!best)return null;
+  if(best.map.size<best.total)throw new Error(`QRを${best.total}個中${best.map.size}個しか読み取れませんでした。画像を元の大きさで読み込んでください。`);
+  const arr=[];for(let i=1;i<=best.total;i++)arr.push(best.map.get(i));const len=arr.reduce((n,b)=>n+b.length,0),all=new Uint8Array(len);let p=0;for(const b of arr){all.set(b,p);p+=b.length}
+  return JSON.parse(bytesToText(await gunzipBytes(all)));
 }
-function setControlValue(id,value){const el=document.getElementById(id);if(!el)return;el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));}
-function compactStateToNormal(state){
-  if(!state||state.v!==3)return state;
-  return {
-    v:3,text:state.t||'',size:state.s,x:state.x,y:state.y,color:state.c,outline:state.o,outlineSize:state.os,useQR:state.q,useBG:state.b,
-    background:state.g?{path:state.g.p||null,data:state.g.d?b64ToDataURL(state.g.d):null}:null,
-    stickers:(state.a||[]).map(r=>({path:r.p||null,data:r.d?b64ToDataURL(r.d):null,name:r.n,x:r.x,y:r.y,w:r.w,h:r.h,rot:r.r,flipX:r.fx,flipY:r.fy,whiteOutline:r.wo,outlinePx:r.op})),
-    layers:(state.l||[]).map(x=>x==='t'?'text':x)
-  };
-}
-async function decodeShareCode(code){
-  if(code.startsWith('TAMA3:')){
-    const bytes=await gunzipBytes(b64UrlToBytes(code.slice(6)));
-    return compactStateToNormal(JSON.parse(bytesToText(bytes)));
+async function scanMultiQR(file){
+  if(!file)throw new Error('画像が選択されていません');
+  const url=URL.createObjectURL(file),img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('画像を読み込めません'));im.src=url});URL.revokeObjectURL(url);
+  const base=document.createElement('canvas'),max=2600,sc=Math.min(1,max/img.naturalWidth);base.width=Math.round(img.naturalWidth*sc);base.height=Math.round(img.naturalHeight*sc);base.getContext('2d').drawImage(img,0,0,base.width,base.height);
+  const found=[];const add=v=>{if(v&&!found.includes(v))found.push(v)};
+  if('BarcodeDetector' in window){try{const det=new BarcodeDetector({formats:['qr_code']});for(const x of await det.detect(base))add(x.rawValue)}catch(e){}}
+  if(typeof jsQR==='function'){
+    const scanCanvas=document.createElement('canvas'),ctx=scanCanvas.getContext('2d',{willReadFrequently:true});
+    const scan=(sx,sy,sw,sh)=>{if(sw<50||sh<50)return;scanCanvas.width=sw;scanCanvas.height=sh;ctx.drawImage(base,sx,sy,sw,sh,0,0,sw,sh);const d=ctx.getImageData(0,0,sw,sh);const r=jsQR(d.data,sw,sh,{inversionAttempts:'attemptBoth'});if(r?.data)add(r.data)};
+    scan(0,0,base.width,base.height);
+    // The share card is horizontal: overlapping vertical windows find each QR independently.
+    const win=Math.min(520,Math.max(320,Math.round(base.height*.78))), step=Math.max(120,Math.round(win*.62));
+    for(let x=0;x<base.width;x+=step)scan(x,0,Math.min(win,base.width-x),base.height);
+    // Also scan the top QR area at a few scales for LINE-resized images.
+    const top=Math.min(base.height,Math.round(base.height*.78));
+    for(let x=0;x<base.width;x+=step)scan(x,0,Math.min(win,base.width-x),top);
   }
-  if(code.startsWith('TAMA2:')) code=code.slice(6);
-  // v44 legacy uncompressed Base64 code remains supported.
-  return JSON.parse(new TextDecoder().decode(b64UrlToBytes(code.replace(/\+/g,'-').replace(/\//g,'_'))));
+  return decodeScannedShareParts(found);
 }
-async function loadShareCode(){
+async function loadMultiQRFile(file){
   const status=document.getElementById('shareCodeStatus');
   try{
-    const code=document.getElementById('shareCode').value.trim();
-    if(!code)throw new Error('共有コードが空です');
-    status.textContent='読み込み中…';
-    const state=await decodeShareCode(code);
-    if(!state||state.v<1)throw new Error('対応していない共有コードです');
-
-    input.value=state.text||'';
-    setControlValue('size',state.size??32); setControlValue('posX',state.x??125); setControlValue('posY',state.y??105);
-    textColor=state.color||'#111111';
-    document.querySelectorAll('.colorBtn').forEach(b=>b.classList.toggle('active',b.dataset.color===textColor));
-    useOutline.checked=state.outline!==false; setControlValue('outlineSize',state.outlineSize??3);
-    useQR.checked=state.useQR!==false; useBG.checked=state.useBG!==false;
-
-    customBG=null; selectedBG=null; document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));
-    if(state.background?.data){customBG=await imageFromSource(state.background.data);}
-    else {selectedBG=state.background?.path||'backgrounds/blue.png'; const b=[...document.querySelectorAll('.bgBtn')].find(x=>x.querySelector('img')?.src.split('?')[0].endsWith('/'+selectedBG.split('/').pop())); if(b)b.classList.add('active');}
-
-    for(const st of stickers) if(st.el)st.el.remove();
-    stickers=[]; selectedSticker=null; layerOrder=['text'];
-    const loaded=[];
-    for(const rec of (state.stickers||[])){
-      const src=rec.data||normalizedAssetURL(rec.path);
-      if(!src)continue;
-      const im=await imageFromSource(src);
-      addSticker(im,rec.name||'スタンプ');
-      const st=stickers[stickers.length-1];
-      st.x=Number(rec.x??600);st.y=Number(rec.y??600);st.w=Number(rec.w??300);st.h=Number(rec.h??300);st.rot=Number(rec.rot??0);st.flipX=!!rec.flipX;st.flipY=!!rec.flipY;st.whiteOutline=!!rec.whiteOutline;st.outlinePx=Number(rec.outlinePx??5);
-      loaded.push(st); updateStickerElement(st);
-    }
-    const newLayers=[];
-    for(const x of (state.layers||[])){
-      if(x==='text')newLayers.push('text'); else if(Number.isInteger(x)&&loaded[x])newLayers.push(loaded[x]);
-    }
-    for(const st of loaded)if(!newLayers.includes(st))newLayers.push(st);
-    layerOrder=newLayers.length?newLayers:['text'];
-    selectedSticker=loaded.length?loaded[loaded.length-1]:null; renderStickerTools(); updateLayerVisuals(); await renderComposition();
-    status.textContent=`読み込み完了：文字・背景・スタンプ${loaded.length}個・配置を復元しました。`;
-  }catch(e){console.error(e);status.textContent='共有コードを読み込めませんでした：'+(e.message||e);}
+    status.textContent='複式QRを解析中…';
+    const pack=await scanMultiQR(file);if(!pack||!pack.s)throw new Error('複式QRを完全には読み取れませんでした');
+    const state=pack.s;
+    input.value=state.t||'';setControlValue('size',state.s??32);setControlValue('posX',state.x??125);setControlValue('posY',state.y??105);textColor=state.c||'#111111';document.querySelectorAll('.colorBtn').forEach(b=>b.classList.toggle('active',b.dataset.color===textColor));
+    useOutline.checked=state.o!==false;setControlValue('outlineSize',state.os??3);useQR.checked=state.q!==false;useBG.checked=state.b!==false;
+    customBG=null;selectedBG=null;document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));
+    if(state.g?.d)customBG=await imageFromSource(b64ToDataURL(state.g.d));
+    else{selectedBG=state.g?.p||'backgrounds/blue.png';const b=[...document.querySelectorAll('.bgBtn')].find(x=>x.querySelector('img')?.src.split('?')[0].endsWith('/'+selectedBG.split('/').pop()));if(b)b.classList.add('active')}
+    for(const st of stickers)if(st.el)st.el.remove();stickers=[];selectedSticker=null;layerOrder=['text'];const loaded=[];
+    for(const rec of(state.a||[])){const src=rec.d?b64ToDataURL(rec.d):normalizedAssetURL(rec.p);if(!src)continue;const im=await imageFromSource(src);addSticker(im,rec.n||'スタンプ');const st=stickers[stickers.length-1];st.x=Number(rec.x??600);st.y=Number(rec.y??600);st.w=Number(rec.w??300);st.h=Number(rec.h??300);st.rot=Number(rec.r??0);st.flipX=!!rec.fx;st.flipY=!!rec.fy;st.whiteOutline=!!rec.wo;st.outlinePx=Number(rec.op??5);loaded.push(st);updateStickerElement(st)}
+    const nl=[];for(const x of(state.l||[])){if(x==='t')nl.push('text');else if(Number.isInteger(x)&&loaded[x])nl.push(loaded[x])}for(const st of loaded)if(!nl.includes(st))nl.push(st);layerOrder=nl.length?nl:['text'];selectedSticker=loaded.length?loaded[loaded.length-1]:null;renderStickerTools();updateLayerVisuals();await renderComposition();
+    document.getElementById('shareDate').value=pack.d||dateValue();document.getElementById('shareComment').value=pack.m||'';
+    status.textContent=`復元完了：QRを${pack.s.a?.length||0}個のスタンプを含めて読み込みました。${pack.d?' 日付・コメントも復元しました。':''}`;
+  }catch(e){console.error(e);status.textContent='複式QRを読み込めませんでした：'+(e.message||e)}
 }
-document.getElementById('makeShareCode').onclick=createShareCode;
-document.getElementById('loadShareCode').onclick=loadShareCode;
+document.getElementById('makeShareCode').onclick=createMultiQRCard;
+document.getElementById('saveShareQR').onclick=saveMultiQR;
+document.getElementById('shareQrFile').onchange=e=>loadMultiQRFile(e.target.files[0]);
+(function initShareDate(){const d=document.getElementById('shareDate');if(d&&!d.value)d.value=new Date().toISOString().slice(0,10)})();
 
 function loadFile(file){
   loadedFile=file;if(!file)return;
