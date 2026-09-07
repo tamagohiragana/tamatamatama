@@ -497,6 +497,25 @@ async function renderComposition(){
 }
 input.oninput=renderComposition;
 function clampNum(v,min,max,fallback){const n=Number(v);return Number.isFinite(n)?Math.min(max,Math.max(min,n)):fallback}
+function setControlValue(id,v){
+  const n=Number(v);
+  if(id==='size'){
+    const x=clampNum(n,18,100,32);
+    size.value=x; sizeNum.value=x; sizev.textContent=x+'px';
+  }else if(id==='posX'){
+    const x=clampNum(n,0,1000,125);
+    posX.value=x; posXNum.value=x; posXv.value=x+'px';
+  }else if(id==='posY'){
+    const x=clampNum(n,0,1000,105);
+    posY.value=x; posYNum.value=x; posYv.value=x+'px';
+  }else if(id==='outlineSize'){
+    const x=clampNum(n,0,10,3);
+    outlineSize.value=x; outlineSizeNum.value=x; outlineSizev.textContent=x;
+  }else{
+    const el=document.getElementById(id);
+    if(el) el.value=v;
+  }
+}
 function updateSize(v){const n=clampNum(v,18,100,32);size.value=n;sizeNum.value=n;sizev.textContent=n+'px';renderComposition()}
 function updatePosition(which,v){
   if(which==='x'){const n=clampNum(v,0,1000,125);posX.value=n;posXNum.value=n;posXv.value=n+'px';}
