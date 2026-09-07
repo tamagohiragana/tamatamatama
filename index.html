@@ -969,13 +969,13 @@ async function sharePng(target){
 document.getElementById('share').onclick=()=>sharePng('共有');
 
 // --- Share code -----------------------------------------------------------
-// v44: composition state can be exported/imported. Public repo assets are referenced by path;
-// local original background/stickers are embedded as PNG/JPEG/WebP data URLs.
-const SHARE_CODE_PREFIX='TAMA2:';
+// v44.1: gzip/deflate + compact keys + URL-safe Base64.
+// Public repo assets are referenced by path; local images are embedded as PNG data.
+const SHARE_CODE_PREFIX='TAMA3:';
 function shareAssetPath(src,folder){
   if(!src)return null;
   try{
-    if(src.startsWith('blob:')) return null;
+    if(src.startsWith('blob:') || src.startsWith('data:')) return null;
     const u=new URL(src,location.href);
     if(u.origin===location.origin && u.pathname.includes('/'+folder+'/')){
       const i=u.pathname.indexOf('/'+folder+'/');
@@ -996,41 +996,68 @@ function imageToDataURL(img){
     }catch(e){reject(e)}
   });
 }
-function utf8ToB64(str){
-  const bytes=new TextEncoder().encode(str); let bin='';
+function dataURLToB64(dataURL){
+  const i=dataURL.indexOf(',');
+  return i>=0?dataURL.slice(i+1):dataURL;
+}
+function b64ToDataURL(b64,mime='image/png'){
+  return 'data:'+mime+';base64,'+b64;
+}
+function bytesToB64Url(bytes){
+  let bin='';
   for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
-  return btoa(bin);
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
-function b64ToUtf8(b64){
-  const bin=atob(b64), bytes=new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-  return new TextDecoder().decode(bytes);
+function b64UrlToBytes(str){
+  str=str.replace(/-/g,'+').replace(/_/g,'/');
+  while(str.length%4)str+='=';
+  const bin=atob(str),out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);
+  return out;
 }
+async function gzipBytes(bytes){
+  if(!('CompressionStream' in window)) return null;
+  const cs=new CompressionStream('gzip');
+  const writer=cs.writable.getWriter(); writer.write(bytes); writer.close();
+  return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+}
+async function gunzipBytes(bytes){
+  if(!('DecompressionStream' in window)) throw new Error('このブラウザは圧縮共有コードの読み込みに対応していません');
+  const ds=new DecompressionStream('gzip');
+  const writer=ds.writable.getWriter(); writer.write(bytes); writer.close();
+  return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+}
+function textToBytes(str){return new TextEncoder().encode(str)}
+function bytesToText(bytes){return new TextDecoder().decode(bytes)}
 function makeShareStickerRecord(st){
   const path=shareAssetPath(st.img?.src||'', 'stickers');
-  return {path:path||null,data:path?null:null,name:st.name||'スタンプ',x:Math.round(st.x*10)/10,y:Math.round(st.y*10)/10,w:Math.round(st.w*10)/10,h:Math.round(st.h*10)/10,rot:Math.round(st.rot*100000)/100000,flipX:!!st.flipX,flipY:!!st.flipY,whiteOutline:!!st.whiteOutline,outlinePx:st.outlinePx||5};
+  return {p:path||null,d:null,n:st.name||'スタンプ',x:Math.round(st.x*10)/10,y:Math.round(st.y*10)/10,w:Math.round(st.w*10)/10,h:Math.round(st.h*10)/10,r:Math.round(st.rot*100000)/100000,fx:!!st.flipX,fy:!!st.flipY,wo:!!st.whiteOutline,op:st.outlinePx||5};
 }
 async function makeShareState(){
-  const state={v:2,text:input.value,size:Number(size.value),x:Number(posX.value),y:Number(posY.value),color:textColor,outline:!!useOutline.checked,outlineSize:Number(outlineSize.value),useQR:!!useQR.checked,useBG:!!useBG.checked,background:null,stickers:[],layers:[]};
-  if(customBG){ state.background={path:null,data:await imageToDataURL(customBG)}; }
-  else { state.background={path:selectedBG||'backgrounds/blue.png',data:null}; }
+  const state={v:3,t:input.value,s:Number(size.value),x:Number(posX.value),y:Number(posY.value),c:textColor,o:!!useOutline.checked,os:Number(outlineSize.value),q:!!useQR.checked,b:!!useBG.checked,g:null,a:[],l:[]};
+  if(customBG){ state.g={p:null,d:dataURLToB64(await imageToDataURL(customBG))}; }
+  else { state.g={p:selectedBG||'backgrounds/blue.png',d:null}; }
   for(const st of stickers){
     const r=makeShareStickerRecord(st);
-    if(!r.path) r.data=await imageToDataURL(st.img);
-    state.stickers.push(r);
+    if(!r.p) r.d=dataURLToB64(await imageToDataURL(st.img));
+    state.a.push(r);
   }
-  state.layers=layerOrder.map(x=>x==='text'?'text':stickers.indexOf(x));
+  state.l=layerOrder.map(x=>x==='text'?'t':stickers.indexOf(x));
   return state;
 }
 async function createShareCode(){
   const status=document.getElementById('shareCodeStatus');
   try{
-    status.textContent='共有コードを作製中…';
+    status.textContent='共有コードを圧縮中…';
     const state=await makeShareState();
-    const code=SHARE_CODE_PREFIX+utf8ToB64(JSON.stringify(state));
+    const raw=textToBytes(JSON.stringify(state));
+    const compressed=await gzipBytes(raw);
+    if(!compressed) throw new Error('このブラウザは圧縮共有コードに対応していません');
+    const code=SHARE_CODE_PREFIX+bytesToB64Url(compressed);
     const box=document.getElementById('shareCode'); box.value=code; box.focus(); box.select();
-    try{await navigator.clipboard.writeText(code);status.textContent=`作製しました（${code.length.toLocaleString()}文字）。クリップボードにもコピーしました。`;}
-    catch(e){status.textContent=`作製しました（${code.length.toLocaleString()}文字）。長押し／選択してコピーしてください。`;}
+    const rawLen=raw.length, codeLen=code.length;
+    try{await navigator.clipboard.writeText(code);status.textContent=`圧縮して作製しました（${codeLen.toLocaleString()}文字 / 圧縮前 ${rawLen.toLocaleString()}byte）。コピー済みです。`;}
+    catch(e){status.textContent=`圧縮して作製しました（${codeLen.toLocaleString()}文字）。長押し／選択してコピーしてください。`;}
   }catch(e){console.error(e);status.textContent='共有コードを作製できませんでした：'+(e.message||e);}
 }
 function imageFromSource(src){
@@ -1042,15 +1069,32 @@ function normalizedAssetURL(path){
   return path.split('?')[0]+'?v='+Date.now();
 }
 function setControlValue(id,value){const el=document.getElementById(id);if(!el)return;el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));}
+function compactStateToNormal(state){
+  if(!state||state.v!==3)return state;
+  return {
+    v:3,text:state.t||'',size:state.s,x:state.x,y:state.y,color:state.c,outline:state.o,outlineSize:state.os,useQR:state.q,useBG:state.b,
+    background:state.g?{path:state.g.p||null,data:state.g.d?b64ToDataURL(state.g.d):null}:null,
+    stickers:(state.a||[]).map(r=>({path:r.p||null,data:r.d?b64ToDataURL(r.d):null,name:r.n,x:r.x,y:r.y,w:r.w,h:r.h,rot:r.r,flipX:r.fx,flipY:r.fy,whiteOutline:r.wo,outlinePx:r.op})),
+    layers:(state.l||[]).map(x=>x==='t'?'text':x)
+  };
+}
+async function decodeShareCode(code){
+  if(code.startsWith('TAMA3:')){
+    const bytes=await gunzipBytes(b64UrlToBytes(code.slice(6)));
+    return compactStateToNormal(JSON.parse(bytesToText(bytes)));
+  }
+  if(code.startsWith('TAMA2:')) code=code.slice(6);
+  // v44 legacy uncompressed Base64 code remains supported.
+  return JSON.parse(new TextDecoder().decode(b64UrlToBytes(code.replace(/\+/g,'-').replace(/\//g,'_'))));
+}
 async function loadShareCode(){
   const status=document.getElementById('shareCodeStatus');
   try{
-    let code=document.getElementById('shareCode').value.trim();
-    if(code.startsWith('TAMA2:')) code=code.slice(6);
+    const code=document.getElementById('shareCode').value.trim();
     if(!code)throw new Error('共有コードが空です');
-    const state=JSON.parse(b64ToUtf8(code));
-    if(!state||state.v<1)throw new Error('対応していない共有コードです');
     status.textContent='読み込み中…';
+    const state=await decodeShareCode(code);
+    if(!state||state.v<1)throw new Error('対応していない共有コードです');
 
     input.value=state.text||'';
     setControlValue('size',state.size??32); setControlValue('posX',state.x??125); setControlValue('posY',state.y??105);
