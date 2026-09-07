@@ -1025,11 +1025,11 @@ async function makeShareState(){
 function dateValue(){return document.getElementById('shareDate')?.value||new Date().toISOString().slice(0,10)}
 function formatDateJP(v){if(!v)return '';const a=v.split('-');return a.length===3?`${a[0]}/${a[1]}/${a[2]}`:v}
 async function makeSharePackage(){
+  // v46: 圧縮処理を完全に廃止。まずJSONをそのままUTF-8化してQRへ分割する。
+  // これにより、CompressionStream待ちで画面が固まる問題を避ける。
   const state=await makeShareState();
-  const wrapper={v:1,d:dateValue(),m:(document.getElementById('shareComment')?.value||'').slice(0,60),s:state};
-  const compressed=await gzipBytes(textToBytes(JSON.stringify(wrapper)));
-  if(!compressed)throw new Error('このブラウザは圧縮共有データに対応していません');
-  return compressed;
+  const wrapper={v:2,d:dateValue(),m:(document.getElementById('shareComment')?.value||'').slice(0,60),s:state};
+  return textToBytes(JSON.stringify(wrapper));
 }
 function drawOneShareQR(payload,px){
   qrcode.stringToBytes=str=>Array.from(new TextEncoder().encode(str));
@@ -1043,7 +1043,7 @@ function drawOneShareQR(payload,px){
 async function createMultiQRCard(){
   const status=document.getElementById('shareCodeStatus'), preview=document.getElementById('shareQrPreview');
   try{
-    status.textContent='共有データを圧縮しています…';
+    status.textContent='共有データをQRに分割しています…';
     const bytes=await makeSharePackage();
     // 700 raw bytes per QR keeps the payload comfortably inside high-error-correction QR sizes.
     const chunkSize=700,total=Math.max(1,Math.ceil(bytes.length/chunkSize));
@@ -1051,7 +1051,7 @@ async function createMultiQRCard(){
     const qrs=[]; const qrPx=260;
     for(let i=0;i<total;i++){
       const chunk=bytes.slice(i*chunkSize,Math.min(bytes.length,(i+1)*chunkSize));
-      const payload=SHARE_QR_PREFIX+id+'|'+(i+1)+'|'+total+'|'+bytesToB64Url(chunk);
+      const payload='TQ0|'+id+'|'+(i+1)+'|'+total+'|'+bytesToB64Url(chunk);
       qrs.push(drawOneShareQR(payload,qrPx));
     }
     const gap=20,pad=28,top=pad,bottom=112;
@@ -1067,14 +1067,17 @@ async function createMultiQRCard(){
     lastShareQrBlob=await new Promise(res=>out.toBlob(res,'image/png'));
     if(lastShareQrObjectUrl)URL.revokeObjectURL(lastShareQrObjectUrl);lastShareQrObjectUrl=URL.createObjectURL(lastShareQrBlob);
     document.getElementById('saveShareQR').disabled=false;
-    status.textContent=`複式QRを作製しました：${total}個のQR（データ ${bytes.length.toLocaleString()} byte）。横一列で保存できます。`;
+    status.textContent=`複式QRを作製しました：${total}個のQR（非圧縮 ${bytes.length.toLocaleString()} byte）。横一列で保存できます。`;
   }catch(e){console.error(e);status.textContent='複式QRコードを作製できませんでした：'+(e.message||e)}
 }
 function saveMultiQR(){if(!lastShareQrBlob)return;downloadData(lastShareQrObjectUrl,'tamagotchi_share_qr.png')}
 function parseMultiQR(v){
-  if(typeof v!=='string'||!v.startsWith(SHARE_QR_PREFIX))return null;
+  if(typeof v!=='string')return null;
+  // TQ0 = v46 raw JSON / TQ1 = v45 compressed data (backward compatible)
+  const raw=v.startsWith('TQ0|'), old=v.startsWith(SHARE_QR_PREFIX);
+  if(!raw && !old)return null;
   const p=v.split('|');if(p.length<5)return null;const idx=Number(p[2]),total=Number(p[3]);if(!p[1]||!Number.isInteger(idx)||!Number.isInteger(total)||idx<1||idx>total)return null;
-  try{return {id:p[1],idx,total,bytes:b64UrlToBytes(p.slice(4).join('|'))}}catch(e){return null}
+  try{return {id:p[1],idx,total,raw,bytes:b64UrlToBytes(p.slice(4).join('|'))}}catch(e){return null}
 }
 async function decodeScannedShareParts(parts){
   const groups=new Map();
@@ -1083,6 +1086,7 @@ async function decodeScannedShareParts(parts){
   if(!best)return null;
   if(best.map.size<best.total)throw new Error(`QRを${best.total}個中${best.map.size}個しか読み取れませんでした。画像を元の大きさで読み込んでください。`);
   const arr=[];for(let i=1;i<=best.total;i++)arr.push(best.map.get(i));const len=arr.reduce((n,b)=>n+b.length,0),all=new Uint8Array(len);let p=0;for(const b of arr){all.set(b,p);p+=b.length}
+  if(best.raw) return JSON.parse(bytesToText(all));
   return JSON.parse(bytesToText(await gunzipBytes(all)));
 }
 async function scanMultiQR(file){
