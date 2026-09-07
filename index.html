@@ -99,6 +99,11 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 <style id="sticker-layer-fix">
 /* v39: QRコードは常に最前面（スタンプより上） */
 #qrLayer, #qrCanvas { z-index: 9999 !important; }
+
+.shareCodeBox{margin-top:12px;padding:12px;border:1px solid #ddd;border-radius:12px;background:#fafafa}
+.shareCodeRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.shareCodeInput{width:100%;min-height:100px;box-sizing:border-box;resize:vertical;font-family:monospace;font-size:12px;padding:10px;border:1px solid #ccc;border-radius:8px;background:#fff}
+@media(max-width:600px){.shareCodeRow{grid-template-columns:1fr}}
 </style>
 
 </head>
@@ -147,6 +152,13 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 <div id="stickerStatus" class="small"></div>
 <div class="layerRow"><button id="layerUp" type="button">↑ 前面へ</button><button id="layerDown" type="button">↓ 背面へ</button></div>
 <div class="actionRow"><button id="copy">ひらがなをコピー</button><button id="png" class="primary">PNG保存</button><button id="clear" class="gray">クリア</button></div><div class="shareRow"><button id="share" class="share">共有</button></div>
+<div class="shareCodeBox">
+  <div class="badge">共有コード</div>
+  <div class="small">今の文字・背景・スタンプの配置・反転・白枠などをコード化します。オリジナル背景／スタンプは画像データもコードに含めます。</div>
+  <div class="shareCodeRow"><button id="makeShareCode" type="button" class="share">共有コード作製</button><button id="loadShareCode" type="button" class="primary">共有コード読み込み</button></div>
+  <textarea id="shareCode" class="shareCodeInput" placeholder="ここに共有コードを貼り付け"></textarea>
+  <div id="shareCodeStatus" class="small"></div>
+</div>
 </section>
 
 <section class="panel"><div class="badge">④ たまごっち文字画像 → ひらがな</div>
@@ -243,24 +255,25 @@ function setFolderStatus(id,text){
   const el=document.getElementById(id); if(el) el.textContent=text||'';
 }
 async function fetchPngFiles(folder){
-  // v42: GitHub APIに依存せず、同じGitHub Pages上の自動生成manifestを優先。
-  const manifestUrl=folder+'/index.json?v='+Date.now();
+  // v43.4: 同名PNGを上書きした場合も必ず最新版を取得するためキャッシュバスターを付与。
+  const cacheBust=Date.now().toString();
+  const manifestUrl=folder+'/index.json?v='+cacheBust;
   try{
     const r=await fetch(manifestUrl,{cache:'no-store'});
     if(r.ok){
       const data=await r.json();
       if(Array.isArray(data)){
         return data.filter(x=>typeof x==='string' && /\.png$/i.test(x))
-          .map(name=>({name,download_url:folder+'/'+encodeURIComponent(name)}))
+          .map(name=>({name,download_url:folder+'/'+encodeURIComponent(name)+'?v='+cacheBust}))
           .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
       }
     }
   }catch(e){}
-  // manifestがまだ無い/古い場合だけGitHub APIへフォールバック。
+  // manifestがまだ無い場合だけGitHub APIへフォールバック。こちらにもキャッシュバスターを付与。
   const res=await fetch(GITHUB_REPO_API+folder,{cache:'no-store'});
   if(!res.ok) throw new Error('GitHub API '+res.status);
   const data=await res.json();
-  return Array.isArray(data) ? data.filter(x=>x.type==='file' && /\.png$/i.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})) : [];
+  return Array.isArray(data) ? data.filter(x=>x.type==='file' && /\.png$/i.test(x.name)).map(x=>({...x,download_url:(x.download_url||(''+folder+'/'+encodeURIComponent(x.name)))+'?v='+cacheBust})).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})) : [];
 }
 function addBGButton(path,label,active=false){
   const b=document.createElement('button');b.type='button';b.className='bgBtn'+(active?' active':'');
@@ -272,7 +285,8 @@ function addBGButton(path,label,active=false){
 async function initBG(){
   bgGrid.innerHTML='';
   // まず既存の標準背景を即表示（API失敗時も従来通り使える）
-  for(const [id,label] of BG_LIST) addBGButton('backgrounds/'+id+'.png',label,id==='blue');
+  const assetBust='?v='+Date.now();
+  for(const [id,label] of BG_LIST) addBGButton('backgrounds/'+id+'.png'+assetBust,label,id==='blue');
   try{
     const files=await fetchPngFiles('backgrounds');
     const existing=new Set(BG_LIST.map(x=>x[0]+'.png'));
@@ -288,11 +302,13 @@ const STANDARD_STICKERS=[
 async function initStandardStickers(){
   const grid=document.getElementById('standardStickerGrid'); grid.innerHTML='';
   // 既存8種を即表示
+  const stickerBust='?v='+Date.now();
   for(const [src,label] of STANDARD_STICKERS){
+    const freshSrc=src+stickerBust;
     const b=document.createElement('button'); b.type='button'; b.className='standardStickerBtn';
-    const im=new Image(); im.src=src; im.alt=label;
+    const im=new Image(); im.src=freshSrc; im.alt=label;
     const sp=document.createElement('span'); sp.textContent=label;
-    b.append(im,sp); b.onclick=()=>{ const x=new Image(); x.onload=()=>addSticker(x,label); x.src=src; };
+    b.append(im,sp); b.onclick=()=>{ const x=new Image(); x.onload=()=>addSticker(x,label); x.src=freshSrc; };
     grid.appendChild(b);
   }
   try{
@@ -951,6 +967,126 @@ async function sharePng(target){
   }catch(e){ if(e && e.name!=='AbortError') alert('共有できませんでした。PNG保存をお試しください。'); }
 }
 document.getElementById('share').onclick=()=>sharePng('共有');
+
+// --- Share code -----------------------------------------------------------
+// v44: composition state can be exported/imported. Public repo assets are referenced by path;
+// local original background/stickers are embedded as PNG/JPEG/WebP data URLs.
+const SHARE_CODE_PREFIX='TAMA2:';
+function shareAssetPath(src,folder){
+  if(!src)return null;
+  try{
+    if(src.startsWith('blob:')) return null;
+    const u=new URL(src,location.href);
+    if(u.origin===location.origin && u.pathname.includes('/'+folder+'/')){
+      const i=u.pathname.indexOf('/'+folder+'/');
+      return folder+'/'+decodeURIComponent(u.pathname.slice(i+folder.length+2));
+    }
+    if(src.startsWith(folder+'/')) return src.split('?')[0];
+  }catch(e){}
+  return null;
+}
+function imageToDataURL(img){
+  return new Promise((resolve,reject)=>{
+    try{
+      const c=document.createElement('canvas');
+      c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height;
+      if(!c.width||!c.height) throw new Error('画像サイズを取得できません');
+      c.getContext('2d').drawImage(img,0,0);
+      resolve(c.toDataURL('image/png'));
+    }catch(e){reject(e)}
+  });
+}
+function utf8ToB64(str){
+  const bytes=new TextEncoder().encode(str); let bin='';
+  for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+  return btoa(bin);
+}
+function b64ToUtf8(b64){
+  const bin=atob(b64), bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+function makeShareStickerRecord(st){
+  const path=shareAssetPath(st.img?.src||'', 'stickers');
+  return {path:path||null,data:path?null:null,name:st.name||'スタンプ',x:Math.round(st.x*10)/10,y:Math.round(st.y*10)/10,w:Math.round(st.w*10)/10,h:Math.round(st.h*10)/10,rot:Math.round(st.rot*100000)/100000,flipX:!!st.flipX,flipY:!!st.flipY,whiteOutline:!!st.whiteOutline,outlinePx:st.outlinePx||5};
+}
+async function makeShareState(){
+  const state={v:2,text:input.value,size:Number(size.value),x:Number(posX.value),y:Number(posY.value),color:textColor,outline:!!useOutline.checked,outlineSize:Number(outlineSize.value),useQR:!!useQR.checked,useBG:!!useBG.checked,background:null,stickers:[],layers:[]};
+  if(customBG){ state.background={path:null,data:await imageToDataURL(customBG)}; }
+  else { state.background={path:selectedBG||'backgrounds/blue.png',data:null}; }
+  for(const st of stickers){
+    const r=makeShareStickerRecord(st);
+    if(!r.path) r.data=await imageToDataURL(st.img);
+    state.stickers.push(r);
+  }
+  state.layers=layerOrder.map(x=>x==='text'?'text':stickers.indexOf(x));
+  return state;
+}
+async function createShareCode(){
+  const status=document.getElementById('shareCodeStatus');
+  try{
+    status.textContent='共有コードを作製中…';
+    const state=await makeShareState();
+    const code=SHARE_CODE_PREFIX+utf8ToB64(JSON.stringify(state));
+    const box=document.getElementById('shareCode'); box.value=code; box.focus(); box.select();
+    try{await navigator.clipboard.writeText(code);status.textContent=`作製しました（${code.length.toLocaleString()}文字）。クリップボードにもコピーしました。`;}
+    catch(e){status.textContent=`作製しました（${code.length.toLocaleString()}文字）。長押し／選択してコピーしてください。`;}
+  }catch(e){console.error(e);status.textContent='共有コードを作製できませんでした：'+(e.message||e);}
+}
+function imageFromSource(src){
+  return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('画像を読み込めません：'+src.slice(0,80)));im.src=src;});
+}
+function normalizedAssetURL(path){
+  if(!path)return null;
+  if(path.startsWith('data:image/'))return path;
+  return path.split('?')[0]+'?v='+Date.now();
+}
+function setControlValue(id,value){const el=document.getElementById(id);if(!el)return;el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));}
+async function loadShareCode(){
+  const status=document.getElementById('shareCodeStatus');
+  try{
+    let code=document.getElementById('shareCode').value.trim();
+    if(code.startsWith('TAMA2:')) code=code.slice(6);
+    if(!code)throw new Error('共有コードが空です');
+    const state=JSON.parse(b64ToUtf8(code));
+    if(!state||state.v<1)throw new Error('対応していない共有コードです');
+    status.textContent='読み込み中…';
+
+    input.value=state.text||'';
+    setControlValue('size',state.size??32); setControlValue('posX',state.x??125); setControlValue('posY',state.y??105);
+    textColor=state.color||'#111111';
+    document.querySelectorAll('.colorBtn').forEach(b=>b.classList.toggle('active',b.dataset.color===textColor));
+    useOutline.checked=state.outline!==false; setControlValue('outlineSize',state.outlineSize??3);
+    useQR.checked=state.useQR!==false; useBG.checked=state.useBG!==false;
+
+    customBG=null; selectedBG=null; document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));
+    if(state.background?.data){customBG=await imageFromSource(state.background.data);}
+    else {selectedBG=state.background?.path||'backgrounds/blue.png'; const b=[...document.querySelectorAll('.bgBtn')].find(x=>x.querySelector('img')?.src.split('?')[0].endsWith('/'+selectedBG.split('/').pop())); if(b)b.classList.add('active');}
+
+    for(const st of stickers) if(st.el)st.el.remove();
+    stickers=[]; selectedSticker=null; layerOrder=['text'];
+    const loaded=[];
+    for(const rec of (state.stickers||[])){
+      const src=rec.data||normalizedAssetURL(rec.path);
+      if(!src)continue;
+      const im=await imageFromSource(src);
+      addSticker(im,rec.name||'スタンプ');
+      const st=stickers[stickers.length-1];
+      st.x=Number(rec.x??600);st.y=Number(rec.y??600);st.w=Number(rec.w??300);st.h=Number(rec.h??300);st.rot=Number(rec.rot??0);st.flipX=!!rec.flipX;st.flipY=!!rec.flipY;st.whiteOutline=!!rec.whiteOutline;st.outlinePx=Number(rec.outlinePx??5);
+      loaded.push(st); updateStickerElement(st);
+    }
+    const newLayers=[];
+    for(const x of (state.layers||[])){
+      if(x==='text')newLayers.push('text'); else if(Number.isInteger(x)&&loaded[x])newLayers.push(loaded[x]);
+    }
+    for(const st of loaded)if(!newLayers.includes(st))newLayers.push(st);
+    layerOrder=newLayers.length?newLayers:['text'];
+    selectedSticker=loaded.length?loaded[loaded.length-1]:null; renderStickerTools(); updateLayerVisuals(); await renderComposition();
+    status.textContent=`読み込み完了：文字・背景・スタンプ${loaded.length}個・配置を復元しました。`;
+  }catch(e){console.error(e);status.textContent='共有コードを読み込めませんでした：'+(e.message||e);}
+}
+document.getElementById('makeShareCode').onclick=createShareCode;
+document.getElementById('loadShareCode').onclick=loadShareCode;
 
 function loadFile(file){
   loadedFile=file;if(!file)return;
