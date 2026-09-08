@@ -1167,20 +1167,13 @@ function getShareFromServer(id,passwordHash){
     if(passwordHash){reject(new Error('v63最小テストではパスワードなしで試してください'));return}
     const status=document.getElementById('shareCodeStatus');
     if(status)status.textContent='サーバーから共有データを取得しています…';
-    // v67: DO NOT navigate this GitHub Pages window to Apps Script.
-    // Open the relay in a separate tab/window. Apps Script can then navigate
-    // the opener (this GitHub Pages window) back to the restored URL and close itself.
+    // v68: use the current tab. No popup/window.open is used, so browser popup
+    // protection cannot block the recovery flow. Apps Script relay returns to
+    // this GitHub Pages URL with the compressed payload in the URL fragment.
     const url=SHARE_SERVER_URL+'?mode=relay&id='+encodeURIComponent(safeId)+'&returnUrl='+encodeURIComponent(APP_URL);
-    const relayWin=window.open(url,'tamaShareRelay','popup,width=520,height=760');
-    if(!relayWin){
-      status.textContent='復元用の画面を開けませんでした。ポップアップを許可してください。';
-      reject(new Error('ポップアップがブロックされています'));
-      return;
-    }
-    status.textContent='共有データを取得しています…別ウィンドウから元のページへ戻ります。';
-    // The opener will be redirected by Apps Script. This window stays on GitHub Pages.
-    setTimeout(()=>{ if(!relayWin.closed) relayWin.focus(); },500);
-    setTimeout(()=>reject(new Error('共有データの復元に時間がかかっています')),30000);
+    status.textContent='共有データを取得しています…元のページへ戻ります。';
+    window.location.assign(url);
+    // Navigation above replaces this page; the Promise remains pending intentionally.
   });
 }
 
@@ -1484,16 +1477,24 @@ document.getElementById('copy2').onclick=()=>navigator.clipboard.writeText(docum
 (async function restoreShareFromRelay(){
   try{
     const u=new URL(location.href);
-    const relay=u.searchParams.get('relay');
+    let relay=u.searchParams.get('relay');
+    let fromHash=false;
+    if(!relay){
+      const h=String(location.hash||'');
+      const m=h.match(/^#TAMA_SERVER_GZ=(.+)$/);
+      if(m){relay=decodeURIComponent(m[1]);fromHash=true;}
+    }
     if(!relay)return;
     u.searchParams.delete('relay');
+    u.hash='';
     history.replaceState(null,'',u.pathname+(u.search||''));
     const bytes=b64urlToBytes(relay);
-    const pack=JSON.parse(new TextDecoder().decode(bytes));
+    if(bytes.length>3000000)throw new Error('復元データが大きすぎます');
+    const pack=await decodeServerPayloadGzip(relay);
     const status=document.getElementById('shareCodeStatus');
     await restoreSharePackage(pack,status);
   }catch(e){
-    console.error('v63 relay restore:',e);
+    console.error('v68 relay restore:',e);
     const status=document.getElementById('shareCodeStatus');
     if(status)status.textContent='共有データを読み込めませんでした：'+(e.message||e);
   }
