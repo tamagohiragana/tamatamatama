@@ -994,8 +994,8 @@ async function sharePng(target){
 document.getElementById('share').onclick=()=>sharePng('共有');
 
 // --- Server share -----------------------------------------------------------
-// v54: share data is stored temporarily on Google Apps Script + Google Drive.
-// The QR code contains only the short share URL, not the composition itself.
+// v73: share data is stored temporarily on Google Apps Script + Google Drive.
+// The QR code contains only the short share ID; the server stores the full composition state.
 const SHARE_SERVER_URL='https://script.google.com/macros/s/AKfycbzmn5ZkZ6VER-pJJNqfPb4hj2FQoROBdK3rM24yZMBsxTCOtiQceWENjsY9UpsmkDQIrw/exec';
 let lastShareQrBlob=null;
 let lastShareQrObjectUrl=null;
@@ -1045,9 +1045,51 @@ function makeShareStickerRecord(st){
   return {p:path||null,d:null,m:null,n:st.name||'スタンプ',x:Math.round(st.x*10)/10,y:Math.round(st.y*10)/10,w:Math.round(st.w*10)/10,h:Math.round(st.h*10)/10,r:Math.round(st.rot*100000)/100000,fx:!!st.flipX,fy:!!st.flipY,wo:!!st.whiteOutline,op:st.outlinePx||5};
 }
 async function makeShareState(){
-  // v63 minimal communication test: intentionally store text only.
-  // Once save -> relay -> restore is proven, the full composition will be restored.
-  return {v:99,t:String(input.value||'')};
+  // v73: full composition state. Standard assets are stored by path;
+  // original/local background and stickers are embedded as optimized images.
+  const state={
+    v:2,
+    t:String(input.value||''),
+    s:Number(size.value),
+    x:Number(posX.value),
+    y:Number(posY.value),
+    c:String(textColor||'#111111'),
+    o:!!useOutline.checked,
+    os:Number(outlineSize.value),
+    q:!!useQR.checked,
+    b:!!useBG.checked,
+    g:null,
+    a:[],
+    l:[]
+  };
+
+  // Background: normal GitHub asset -> path only. Original/local image -> embed.
+  if(customBG){
+    const packed=await imageToShareData(customBG);
+    state.g={p:null,d:dataURLToB64(packed.dataURL),m:packed.mime,w:packed.width,h:packed.height};
+  }else{
+    state.g={p:selectedBG||'backgrounds/blue.png',d:null,m:null};
+  }
+
+  // Stickers: keep the original layer order and all transform settings.
+  for(const st of stickers){
+    const rec=makeShareStickerRecord(st);
+    if(!rec.p && st.img){
+      const packed=await imageToShareData(st.img);
+      rec.d=dataURLToB64(packed.dataURL);
+      rec.m=packed.mime;
+      rec.iw=packed.width;
+      rec.ih=packed.height;
+    }
+    state.a.push(rec);
+  }
+  state.l=layerOrder.map(item=>{
+    if(item==='text') return 't';
+    const i=stickers.indexOf(item);
+    return i>=0?i:null;
+  }).filter(x=>x!==null);
+
+  return state;
 }
 
 function dateValue(){return document.getElementById('shareDate')?.value||new Date().toISOString().slice(0,10)}
@@ -1166,7 +1208,7 @@ function getShareFromServer(id,passwordHash){
     if(!/^[A-Z0-9]{6,32}$/.test(safeId)){reject(new Error('共有IDが正しくありません'));return}
     if(passwordHash){reject(new Error('v63最小テストではパスワードなしで試してください'));return}
     const status=document.getElementById('shareCodeStatus');
-    if(status)status.textContent='共有データを取得しています…（一度サーバーを経由して元のページへ戻ります）';
+    if(status)status.textContent='共有データを取得しています…';
     // v63: no cross-origin response is consumed by GitHub Pages.
     // The Apps Script web app performs the Drive read and redirects the browser
     // back to GitHub Pages with a short, URL-safe base64 payload.
@@ -1232,6 +1274,21 @@ async function handleShareRelayFragment(){
     if(status)status.textContent='共有データを読み込めませんでした：'+(e.message||e);
   }
   return false;
+}
+async function imageFromSource(src){
+  return new Promise((resolve,reject)=>{
+    if(!src){reject(new Error('画像データがありません'));return;}
+    const im=new Image();
+    im.onload=()=>resolve(im);
+    im.onerror=()=>reject(new Error('共有画像を読み込めませんでした'));
+    im.src=src;
+  });
+}
+function normalizedAssetURL(path){
+  if(!path)return null;
+  const s=String(path);
+  if(/^https?:\/\//i.test(s)||s.startsWith('data:')||s.startsWith('blob:')) return s;
+  return s.replace(/^\/+/, '')+'?v='+Date.now();
 }
 async function loadSharePackageDirect(pack){
   const status=document.getElementById('shareCodeStatus');
