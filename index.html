@@ -96,7 +96,7 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 }
 .folderLoadStatus{font-size:12px;opacity:.65;margin:4px 0 6px;}
 
-.shareMetaRow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.shareMetaRow label{display:flex;align-items:center;gap:5px;font-size:13px}.shareMetaRow input{padding:8px;border:1px solid #ccc;border-radius:8px;min-width:120px}.shareMetaRow label:last-child{flex:1}.shareMetaRow label:last-child input{flex:1;min-width:180px}.shareQrPreview{display:block;width:min(100%,360px);max-width:360px;height:auto;margin:12px auto;border:1px solid #eee;border-radius:10px;background:#fff}.fileBtn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#eee;cursor:pointer;font-size:13px}.fileBtn input{display:none}
+.shareMetaRow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.shareMetaRow label{display:flex;align-items:center;gap:5px;font-size:13px}.shareMetaRow input{padding:8px;border:1px solid #ccc;border-radius:8px;min-width:120px}.shareMetaRow label:last-child{flex:1}.shareMetaRow label:last-child input{flex:1;min-width:180px}.shareQrPreview{display:block;width:min(100%,280px);max-width:280px;height:auto;margin:12px auto;border:1px solid #eee;border-radius:10px;background:#fff}.fileBtn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#eee;cursor:pointer;font-size:13px}.fileBtn input{display:none}
 </style>
 <style id="sticker-layer-fix">
 /* v39: QRコードは常に最前面（スタンプより上） */
@@ -1135,14 +1135,14 @@ async function createShareCard(){
     status.textContent=`共有データ ${bytes.length.toLocaleString()} byte をサーバーへ保存しています…`;
     const id=await postToShareServer(pack);
     lastShareId=id;
-    const qr=drawShareQR(getShareUrl(id),360);
-    const pad=28,qrPx=360,bottom=126,cardW=qrPx+pad*2,cardH=pad+qrPx+bottom;
+    const qr=drawShareQR(getShareUrl(id),280);
+    const pad=20,qrPx=280,bottom=108,cardW=qrPx+pad*2,cardH=pad+qrPx+bottom;
     const out=document.createElement('canvas');out.width=cardW;out.height=cardH;const ctx=out.getContext('2d');
     ctx.fillStyle='#fff';ctx.fillRect(0,0,cardW,cardH);ctx.drawImage(qr,pad,pad);
-    ctx.fillStyle='#222';ctx.textAlign='left';ctx.font='bold 24px sans-serif';ctx.fillText('たまごっち文字 共有QR',pad,pad+qrPx+34);
-    ctx.font='20px sans-serif';ctx.fillText(formatDateJP(dateValue()),pad,pad+qrPx+67);
-    const comment=document.getElementById('shareComment')?.value||'';if(comment){ctx.textAlign='right';ctx.font='20px sans-serif';ctx.fillText(comment.slice(0,60),cardW-pad,pad+qrPx+67)}
-    ctx.textAlign='left';ctx.font='16px monospace';ctx.fillText('ID: '+id,pad,pad+qrPx+98);
+    ctx.fillStyle='#222';ctx.textAlign='left';ctx.font='bold 20px sans-serif';ctx.fillText('たまごっち文字 共有QR',pad,pad+qrPx+34);
+    ctx.font='17px sans-serif';ctx.fillText(formatDateJP(dateValue()),pad,pad+qrPx+67);
+    const comment=document.getElementById('shareComment')?.value||'';if(comment){ctx.textAlign='right';ctx.font='17px sans-serif';ctx.fillText(comment.slice(0,60),cardW-pad,pad+qrPx+67)}
+    ctx.textAlign='left';ctx.font='14px monospace';ctx.fillText('ID: '+id,pad,pad+qrPx+98);
     preview.width=cardW;preview.height=cardH;preview.getContext('2d').drawImage(out,0,0);
     lastShareQrBlob=await new Promise(res=>out.toBlob(res,'image/png'));
     if(lastShareQrObjectUrl)URL.revokeObjectURL(lastShareQrObjectUrl);lastShareQrObjectUrl=URL.createObjectURL(lastShareQrBlob);
@@ -1167,46 +1167,79 @@ function getShareFromServer(id,passwordHash){
     const status=document.getElementById('shareCodeStatus');
     if(status)status.textContent='サーバーから共有データを取得しています…';
 
-    // v69: keep GitHub Pages in the current tab. Apps Script is loaded in a
-    // hidden iframe and returns the data with postMessage. No popup and no
-    // navigation of the main page are used.
-    const request='tama_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-    const iframe=document.createElement('iframe');
-    iframe.style.position='fixed'; iframe.style.width='1px'; iframe.style.height='1px';
-    iframe.style.left='-10000px'; iframe.style.top='-10000px'; iframe.style.border='0';
-    iframe.setAttribute('aria-hidden','true');
+    // v70: JSONP is the primary read path. It avoids iframe sandbox/postMessage
+    // issues in Apps Script. If the browser does not execute the JSONP response,
+    // fall back to the hidden-iframe postMessage path.
     let finished=false;
+    let timer1=null,timer2=null;
+    let script=null,iframe=null;
+    const callback='tamaShareCb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
     const cleanup=()=>{
-      clearTimeout(timer);
+      if(timer1)clearTimeout(timer1);
+      if(timer2)clearTimeout(timer2);
+      try{delete window[callback]}catch(e){window[callback]=undefined}
+      if(script?.parentNode)script.parentNode.removeChild(script);
       window.removeEventListener('message',onMessage);
-      setTimeout(()=>{try{iframe.remove()}catch(e){}},50);
+      if(iframe) setTimeout(()=>{try{iframe.remove()}catch(e){}},50);
     };
     const finish=(ok,value)=>{
-      if(finished)return; finished=true; cleanup();
+      if(finished)return;
+      finished=true;cleanup();
       ok?resolve(value):reject(value instanceof Error?value:new Error(String(value||'共有データを取得できませんでした')));
     };
-    function onMessage(ev){
-      const obj=ev.data;
-      if(!obj || obj.type!=='TAMA_SHARE_DATA' || obj.request!==request)return;
-      if(obj.ok && obj.data){ finish(true,obj.data); return; }
+    const retryWithPassword=(hash)=>getShareFromServer(safeId,hash).then(v=>finish(true,v)).catch(e=>finish(false,e));
+    const handleObject=(obj)=>{
+      if(!obj||typeof obj!=='object'){finish(false,new Error('サーバーから不正な応答が返りました'));return;}
+      if(obj.ok&&obj.data){finish(true,obj.data);return;}
       if(obj.passwordRequired){
         const pw=prompt('この共有データにはパスワードが設定されています。パスワードを入力してください。');
         if(pw===null){finish(false,new Error('パスワード入力をキャンセルしました'));return;}
         cleanup();
-        sha256Hex(pw).then(hash=>getShareFromServer(safeId,hash).then(v=>resolve(v)).catch(reject)).catch(reject);
+        sha256Hex(pw).then(retryWithPassword).catch(e=>finish(false,e));
         return;
       }
       finish(false,new Error(obj.error||'共有データを取得できませんでした'));
-    }
-    window.addEventListener('message',onMessage);
-    const url=SHARE_SERVER_URL+'?mode=iframe&id='+encodeURIComponent(safeId)
+    };
+
+    // JSONP callback must be a true window global for Apps Script ContentService.
+    window[callback]=handleObject;
+    script=document.createElement('script');
+    script.async=true;
+    script.src=SHARE_SERVER_URL+'?id='+encodeURIComponent(safeId)
       +'&passwordHash='+encodeURIComponent(passwordHash||'')
-      +'&request='+encodeURIComponent(request)+'&_='+Date.now();
-    const timer=setTimeout(()=>finish(false,new Error('サーバーからの応答がありません（20秒）')),20000);
-    iframe.src=url;
-    document.body.appendChild(iframe);
+      +'&prefix='+encodeURIComponent(callback)
+      +'&_='+Date.now();
+    script.onerror=()=>startIframeFallback('JSONPへの接続に失敗しました');
+    document.head.appendChild(script);
+    timer1=setTimeout(()=>startIframeFallback('JSONP応答なし'),9000);
+
+    function onMessage(ev){
+      const obj=ev.data;
+      if(!obj||obj.type!=='TAMA_SHARE_DATA'||obj.request!==iframe?.dataset?.request)return;
+      handleObject(obj);
+    }
+    function startIframeFallback(reason){
+      if(finished || timer2)return;
+      if(timer1){clearTimeout(timer1);timer1=null;}
+      if(script?.parentNode)script.parentNode.removeChild(script);
+      try{delete window[callback]}catch(e){window[callback]=undefined}
+      if(status)status.textContent='サーバー通信を再試行しています…';
+      const request='tama_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+      iframe=document.createElement('iframe');
+      iframe.dataset.request=request;
+      iframe.style.position='fixed';iframe.style.width='1px';iframe.style.height='1px';
+      iframe.style.left='-10000px';iframe.style.top='-10000px';iframe.style.border='0';
+      iframe.setAttribute('aria-hidden','true');
+      window.addEventListener('message',onMessage);
+      const url=SHARE_SERVER_URL+'?mode=iframe&id='+encodeURIComponent(safeId)
+        +'&passwordHash='+encodeURIComponent(passwordHash||'')
+        +'&request='+encodeURIComponent(request)+'&_='+Date.now();
+      iframe.src=url;document.body.appendChild(iframe);
+      timer2=setTimeout(()=>finish(false,new Error('サーバーからの応答がありません（JSONP/iframe両方失敗）')),12000);
+    }
   });
 }
+
 function b64urlToBytes(s){
   s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');
   while(s.length%4)s+='=';
