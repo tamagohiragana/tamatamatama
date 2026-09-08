@@ -1043,7 +1043,7 @@ async function postPngToServer(pngData){
     }catch(e){finish(false,e)}
   });
 }
-function getShareQrPayload(id){return APP_URL+'?sharepng='+encodeURIComponent(id)}
+function getShareQrPayload(id){return SHARE_SERVER_URL+'?image=1&id='+encodeURIComponent(id)}
 async function createShareCard(){
   const status=document.getElementById('shareCodeStatus'),preview=document.getElementById('shareQrPreview'),button=document.getElementById('makeShareCode');
   try{
@@ -1092,13 +1092,31 @@ async function getPngUrlFromServer(id,passwordHash=''){
 }
 async function loadSharedPng(target,passwordHash=''){
   const status=document.getElementById('shareCodeStatus');
-  const url=target?.type==='server'?await getPngUrlFromServer(target.id,passwordHash):'';
-  const img=new Image();img.decoding='async';img.referrerPolicy='no-referrer';
-  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('共有PNGを表示できませんでした'));img.src=url});
-  lastSharedPngUrl=url;
+  if(!target||target.type!=='server')throw new Error('共有PNGの共有IDを取得できませんでした');
+  const id=String(target.id||'').toUpperCase().trim();
+  if(!/^[A-Z0-9]{6,32}$/.test(id))throw new Error('共有IDが正しくありません');
+  // IMPORTANT: Do NOT load the Google Drive file URL directly.
+  // Android/other browsers may receive a Drive error HTML page instead of the PNG.
+  // Ask Apps Script to render the PNG from Drive as base64 HTML and show that page in an iframe.
+  const url=SHARE_SERVER_URL+'?image=1&id='+encodeURIComponent(id)+(passwordHash?'&passwordHash='+encodeURIComponent(passwordHash):'')+'&_='+Date.now();
   const panel=document.getElementById('sharedPngResult');
-  if(panel){panel.innerHTML='';const title=document.createElement('div');title.className='small';title.textContent='共有PNGを取得しました。';panel.appendChild(title);const view=document.createElement('img');view.src=url;view.alt='共有されたたまごっち文字PNG';view.style.display='block';view.style.maxWidth='360px';view.style.width='100%';view.style.height='auto';view.style.margin='10px auto';view.style.border='2px solid #d7e1ec';view.style.borderRadius='14px';panel.appendChild(view);const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.textContent='共有PNGを開く';a.style.display='inline-block';a.style.margin='4px';panel.appendChild(a)}
-  status.textContent='共有PNGの取得・表示が完了しました。';
+  if(!panel)throw new Error('共有PNG表示欄が見つかりません');
+  panel.innerHTML='';
+  const title=document.createElement('div');title.className='small';title.textContent='共有PNGをサーバーから表示しています…';panel.appendChild(title);
+  const frame=document.createElement('iframe');
+  frame.title='共有PNG';
+  frame.style.display='block';frame.style.width='100%';frame.style.maxWidth='620px';frame.style.height='650px';frame.style.margin='10px auto';frame.style.border='2px solid #d7e1ec';frame.style.borderRadius='14px';frame.style.background='#fff';frame.setAttribute('allow','fullscreen');
+  let timer;
+  await new Promise((resolve,reject)=>{
+    let done=false;
+    const finish=(ok,err)=>{if(done)return;done=true;clearTimeout(timer);ok?resolve():reject(err)};
+    frame.onload=()=>finish(true);
+    frame.onerror=()=>finish(false,new Error('共有PNGを表示できませんでした'));
+    timer=setTimeout(()=>finish(false,new Error('共有PNGの表示に時間がかかりすぎています')),20000);
+    frame.src=url;panel.appendChild(frame);
+  });
+  lastSharedPngUrl=url;
+  status.textContent='共有PNGの表示が完了しました。';
 }
 async function readShareTargetFromQRFile(file){
   if(!file) return null;const decode=v=>extractShareTarget(String(v||''));
