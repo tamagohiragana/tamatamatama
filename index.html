@@ -1163,79 +1163,108 @@ function extractShareId(v){
 function getShareFromServer(id,passwordHash){
   return new Promise((resolve,reject)=>{
     const safeId=String(id||'').toUpperCase().trim();
-    if(!/^[A-Z0-9]{6,32}$/.test(safeId)){reject(new Error('共有IDが正しくありません'));return}
-    const status=document.getElementById('shareCodeStatus');
-    if(status)status.textContent='サーバーから共有データを取得しています…';
+    if(!/^[A-Z0-9]{6,32}$/.test(safeId)){
+      reject(new Error('共有IDが正しくありません')); return;
+    }
 
-    // v70: JSONP is the primary read path. It avoids iframe sandbox/postMessage
-    // issues in Apps Script. If the browser does not execute the JSONP response,
-    // fall back to the hidden-iframe postMessage path.
-    let finished=false;
-    let timer1=null,timer2=null;
-    let script=null,iframe=null;
-    const callback='tamaShareCb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    const status=document.getElementById('shareCodeStatus');
+    const loadBtn=document.getElementById('shareQrFile');
+    const loadLabel=loadBtn?.closest('label');
+    const setBusy=(busy)=>{
+      if(loadBtn)loadBtn.disabled=!!busy;
+      if(loadLabel){
+        loadLabel.style.pointerEvents=busy?'none':'';
+        loadLabel.style.opacity=busy?'0.55':'';
+      }
+    };
+    setBusy(true);
+    if(status)status.textContent='共有データを取得しています…';
+
+    let finished=false, timer=null, script=null, iframe=null, request='';
+    const callback='tamaShareCb_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);
     const cleanup=()=>{
-      if(timer1)clearTimeout(timer1);
-      if(timer2)clearTimeout(timer2);
+      if(timer)clearTimeout(timer);
+      timer=null;
       try{delete window[callback]}catch(e){window[callback]=undefined}
       if(script?.parentNode)script.parentNode.removeChild(script);
       window.removeEventListener('message',onMessage);
-      if(iframe) setTimeout(()=>{try{iframe.remove()}catch(e){}},50);
+      if(iframe){try{iframe.remove()}catch(e){}}
+      setBusy(false);
     };
     const finish=(ok,value)=>{
       if(finished)return;
-      finished=true;cleanup();
-      ok?resolve(value):reject(value instanceof Error?value:new Error(String(value||'共有データを取得できませんでした')));
+      finished=true;
+      cleanup();
+      if(ok)resolve(value);
+      else reject(value instanceof Error?value:new Error(String(value||'共有データを取得できませんでした')));
     };
-    const retryWithPassword=(hash)=>getShareFromServer(safeId,hash).then(v=>finish(true,v)).catch(e=>finish(false,e));
     const handleObject=(obj)=>{
-      if(!obj||typeof obj!=='object'){finish(false,new Error('サーバーから不正な応答が返りました'));return;}
+      if(!obj||typeof obj!=='object'){
+        finish(false,new Error('サーバーから不正な応答が返りました')); return;
+      }
       if(obj.ok&&obj.data){finish(true,obj.data);return;}
       if(obj.passwordRequired){
-        const pw=prompt('この共有データにはパスワードが設定されています。パスワードを入力してください。');
-        if(pw===null){finish(false,new Error('パスワード入力をキャンセルしました'));return;}
         cleanup();
-        sha256Hex(pw).then(retryWithPassword).catch(e=>finish(false,e));
+        const pw=prompt('この共有データにはパスワードが設定されています。パスワードを入力してください。');
+        if(pw===null){reject(new Error('パスワード入力をキャンセルしました'));return;}
+        sha256Hex(pw).then(hash=>{
+          getShareFromServer(safeId,hash).then(resolve).catch(reject);
+        }).catch(reject);
         return;
       }
       finish(false,new Error(obj.error||'共有データを取得できませんでした'));
     };
 
-    // JSONP callback must be a true window global for Apps Script ContentService.
+    // JSONP: Apps Script ContentService returns callback({...});
     window[callback]=handleObject;
     script=document.createElement('script');
     script.async=true;
-    script.src=SHARE_SERVER_URL+'?id='+encodeURIComponent(safeId)
+    script.src=SHARE_SERVER_URL
+      +'?id='+encodeURIComponent(safeId)
       +'&passwordHash='+encodeURIComponent(passwordHash||'')
       +'&prefix='+encodeURIComponent(callback)
+      +'&callback='+encodeURIComponent(callback)
       +'&_='+Date.now();
-    script.onerror=()=>startIframeFallback('JSONPへの接続に失敗しました');
+    script.onload=()=>{
+      // A valid JSONP response calls the callback synchronously.
+      // If it didn't, switch to the iframe fallback after a short grace period.
+      setTimeout(()=>{
+        if(!finished)startIframeFallback();
+      },1200);
+    };
+    script.onerror=()=>startIframeFallback();
     document.head.appendChild(script);
-    timer1=setTimeout(()=>startIframeFallback('JSONP応答なし'),9000);
 
     function onMessage(ev){
       const obj=ev.data;
-      if(!obj||obj.type!=='TAMA_SHARE_DATA'||obj.request!==iframe?.dataset?.request)return;
+      if(!obj||obj.type!=='TAMA_SHARE_DATA'||obj.request!==request)return;
       handleObject(obj);
     }
-    function startIframeFallback(reason){
-      if(finished || timer2)return;
-      if(timer1){clearTimeout(timer1);timer1=null;}
+
+    function startIframeFallback(){
+      if(finished||iframe)return;
       if(script?.parentNode)script.parentNode.removeChild(script);
       try{delete window[callback]}catch(e){window[callback]=undefined}
-      if(status)status.textContent='サーバー通信を再試行しています…';
-      const request='tama_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+      if(status)status.textContent='共有サーバーへ再接続しています…';
+      request='tama_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);
       iframe=document.createElement('iframe');
-      iframe.dataset.request=request;
-      iframe.style.position='fixed';iframe.style.width='1px';iframe.style.height='1px';
-      iframe.style.left='-10000px';iframe.style.top='-10000px';iframe.style.border='0';
+      iframe.style.position='fixed';
+      iframe.style.width='1px';
+      iframe.style.height='1px';
+      iframe.style.left='-10000px';
+      iframe.style.top='-10000px';
+      iframe.style.border='0';
       iframe.setAttribute('aria-hidden','true');
       window.addEventListener('message',onMessage);
-      const url=SHARE_SERVER_URL+'?mode=iframe&id='+encodeURIComponent(safeId)
+      iframe.src=SHARE_SERVER_URL
+        +'?mode=iframe&id='+encodeURIComponent(safeId)
         +'&passwordHash='+encodeURIComponent(passwordHash||'')
-        +'&request='+encodeURIComponent(request)+'&_='+Date.now();
-      iframe.src=url;document.body.appendChild(iframe);
-      timer2=setTimeout(()=>finish(false,new Error('サーバーからの応答がありません（JSONP/iframe両方失敗）')),12000);
+        +'&request='+encodeURIComponent(request)
+        +'&_='+Date.now();
+      document.body.appendChild(iframe);
+      timer=setTimeout(()=>{
+        finish(false,new Error('共有サーバーから応答がありません。Apps Scriptの「新しいデプロイ」が反映されているか確認してください。'));
+      },10000);
     }
   });
 }
