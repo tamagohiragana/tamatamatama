@@ -1181,64 +1181,49 @@ function getShareFromServer(id,passwordHash){
       return;
     }
 
-    // v59: Apps Script ContentService の JSONP を script タグで取得します。
-    // fetch/CORS、iframe、postMessage、ページ遷移には依存しません。
-    const callback='tamaShareCb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    // v62: 固定のJSONPコールバックを使用。
+    // Apps Script ContentService + JSONP は「関数名をprefixとして返す」方式が公式仕様。
+    // 動的な関数名やscript.onloadには依存しない。
+    const requestId='r'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
     const script=document.createElement('script');
-    let finished=false;
-    let timer=null;
+    let finished=false,timer=null;
 
     const cleanup=()=>{
       if(timer)clearTimeout(timer);
-      try{delete window[callback]}catch(e){window[callback]=undefined}
+      window.__tamaSharePending=null;
       if(script.parentNode)script.parentNode.removeChild(script);
     };
     const finish=(ok,value)=>{
       if(finished)return;
-      finished=true;
-      cleanup();
+      finished=true;cleanup();
       ok?resolve(value):reject(value instanceof Error?value:new Error(String(value||'共有データを取得できませんでした')));
     };
 
-    window[callback]=(obj)=>{
+    window.__tamaSharePending=(obj)=>{
       try{
-        if(!obj||typeof obj!=='object'){
-          finish(false,new Error('サーバーから不正な応答が返りました'));
-          return;
-        }
-        if(obj.ok&&obj.data){
-          finish(true,obj.data);
-          return;
-        }
+        if(!obj||typeof obj!=='object')return finish(false,new Error('サーバーから不正な応答が返りました'));
+        if(obj.requestId && obj.requestId!==requestId)return;
+        if(obj.ok&&obj.data)return finish(true,obj.data);
         if(obj.passwordRequired){
           const pw=prompt('この共有データにはパスワードが設定されています。パスワードを入力してください。');
-          if(pw===null){
-            finish(false,new Error('パスワード入力をキャンセルしました'));
-            return;
-          }
+          if(pw===null)return finish(false,new Error('パスワード入力をキャンセルしました'));
           cleanup();
-          // 現在のPromiseを維持したまま、認証後の取得を再試行します。
-          sha256Hex(pw).then(hash=>{
-            getShareFromServer(safeId,hash).then(v=>finish(true,v)).catch(e=>finish(false,e));
-          }).catch(e=>finish(false,e));
+          sha256Hex(pw).then(hash=>getShareFromServer(safeId,hash).then(v=>finish(true,v)).catch(e=>finish(false,e))).catch(e=>finish(false,e));
           return;
         }
         finish(false,new Error(obj.error||'共有データを取得できませんでした'));
       }catch(e){finish(false,e)}
     };
 
-    script.async=true;
+    script.async=false;
     script.src=SHARE_SERVER_URL+'?id='+encodeURIComponent(safeId)
       +'&passwordHash='+encodeURIComponent(passwordHash||'')
-      +'&prefix='+encodeURIComponent(callback)
+      +'&requestId='+encodeURIComponent(requestId)
+      +'&prefix='+encodeURIComponent('__tamaSharePending')
       +'&_='+Date.now();
-    script.onerror=()=>finish(false,new Error('サーバーへ接続できませんでした'));
-    script.onload=()=>{
-      // Apps Script ContentService may redirect to script.googleusercontent.com.
-      // A successful load without callback means the returned JavaScript did not execute.
-    };
+    script.onerror=()=>finish(false,new Error('Apps Scriptからの応答を受信できませんでした'));
     document.head.appendChild(script);
-    timer=setTimeout(()=>finish(false,new Error('サーバーからの取得がタイムアウトしました（30秒）')),30000);
+    timer=setTimeout(()=>finish(false,new Error('サーバーからの応答がありません（30秒）')),30000);
   });
 }
 
