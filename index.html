@@ -1476,4 +1476,116 @@ renderComposition();
 <script>
 
 </script>
+
+<script>
+// v76 fix: PNG-share reader only.  Keep the v75 server format, but do not
+// use the old composition-share functions that were appended by earlier versions.
+(function installPngShareReaderFix(){
+  function extractShareId(v){
+    if(typeof v!=='string') return null;
+    const x=v.trim();
+    try{
+      const u=new URL(x);
+      const base=new URL(APP_URL);
+      if(u.origin===base.origin && u.pathname===base.pathname){
+        const id=u.searchParams.get('sharepng');
+        if(id && /^[A-Z0-9]{6,32}$/i.test(id)) return id.toUpperCase();
+      }
+    }catch(e){}
+    let m=x.match(/^TAMA-PNG:([A-Z0-9]{6,32})$/i);
+    return m?m[1].toUpperCase():null;
+  }
+  window.extractShareId=extractShareId;
+
+  // The PNG itself is the shared object. Retrieve only its short-ID metadata,
+  // then load the actual PNG from Drive.
+  window.loadShareId=async function(id){
+    const status=document.getElementById('shareCodeStatus');
+    try{
+      const safe=String(id||'').toUpperCase().trim();
+      if(!/^[A-Z0-9]{6,32}$/.test(safe)) throw new Error('共有IDが正しくありません');
+      status.textContent=`共有ID ${safe} のPNGを取得しています…`;
+      let url;
+      try{
+        url=await getPngUrlFromServer(safe,'');
+      }catch(e){
+        if(String(e?.message)==='__PASSWORD_REQUIRED__'){
+          const pw=prompt('この共有PNGにはパスワードが設定されています。パスワードを入力してください。');
+          if(pw===null) throw new Error('パスワード入力をキャンセルしました');
+          url=await getPngUrlFromServer(safe,await sha256Hex(pw));
+        }else throw e;
+      }
+      await showSharedPngResult(url,safe);
+    }catch(e){
+      console.error(e);
+      status.textContent='共有PNGを読み込めませんでした：'+(e.message||e);
+    }
+  };
+
+  window.showSharedPngResult=async function(url,id){
+    const status=document.getElementById('shareCodeStatus');
+    const img=new Image();
+    img.decoding='async';
+    img.referrerPolicy='no-referrer';
+    await new Promise((resolve,reject)=>{
+      img.onload=resolve;
+      img.onerror=()=>reject(new Error('Drive上のPNGを表示できませんでした'));
+      img.src=url;
+    });
+    lastSharedPngUrl=url;
+    const panel=document.getElementById('sharedPngResult');
+    if(panel){
+      panel.innerHTML='';
+      const title=document.createElement('div');
+      title.className='small';
+      title.textContent='共有PNGを取得しました。';
+      panel.appendChild(title);
+      const view=document.createElement('img');
+      view.src=url; view.alt='共有されたたまごっち文字PNG';
+      view.style.display='block'; view.style.maxWidth='360px'; view.style.width='100%';
+      view.style.height='auto'; view.style.margin='10px auto';
+      view.style.border='2px solid #d7e1ec'; view.style.borderRadius='14px';
+      panel.appendChild(view);
+      const a=document.createElement('a');
+      a.href=url; a.target='_blank'; a.rel='noopener';
+      a.textContent='共有PNGを開く';
+      a.style.display='inline-block'; a.style.margin='4px';
+      panel.appendChild(a);
+      const save=document.createElement('a');
+      save.href=url; save.download=`tamagotchi_share_${id||'png'}.png`;
+      save.textContent='PNGを保存';
+      save.style.display='inline-block'; save.style.margin='4px';
+      panel.appendChild(save);
+    }
+    status.textContent=`共有PNGの取得・表示が完了しました。ID：${id}`;
+  };
+
+  window.loadShareQRFile=async function(file){
+    const status=document.getElementById('shareCodeStatus');
+    const inputEl=document.getElementById('shareQrFile');
+    try{
+      if(!file)return;
+      status.textContent='共有QRを読み取っています…';
+      const id=await readShareIdFromQRFile(file);
+      if(!id) throw new Error('共有QRコードを読み取れませんでした');
+      await loadShareId(id);
+    }catch(e){
+      console.error(e);
+      status.textContent='共有データを読み込めませんでした：'+(e.message||e);
+    }finally{
+      if(inputEl) inputEl.value='';
+    }
+  };
+
+  const inputEl=document.getElementById('shareQrFile');
+  if(inputEl){
+    inputEl.onchange=async e=>{
+      const el=e.target;
+      el.disabled=true;
+      try{await window.loadShareQRFile(el.files?.[0]);}
+      finally{el.disabled=false;}
+    };
+  }
+})();
+</script>
 </body></html>
