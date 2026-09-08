@@ -1175,18 +1175,73 @@ function extractShareId(v){
 }
 function getShareFromServer(id,passwordHash){
   return new Promise((resolve,reject)=>{
-    // v57: do not use CORS, JSONP, iframe or postMessage for the read path.
-    // Apps Script loads the Drive record and redirects the whole browser back
-    // to this GitHub Pages app with the payload in the URL fragment.
-    const returnUrl=APP_URL+'?shareRelay=1';
-    const key='tamaShareWait_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-    sessionStorage.setItem(key,JSON.stringify({id:id,returnUrl:returnUrl,ts:Date.now()}));
-    window.__tamaShareWaiters=window.__tamaShareWaiters||{};
-    window.__tamaShareWaiters[key]={resolve,reject};
-    const u=SHARE_SERVER_URL+'?mode=redirect&id='+encodeURIComponent(id)+'&passwordHash='+encodeURIComponent(passwordHash||'')+'&return='+encodeURIComponent(returnUrl)+'&key='+encodeURIComponent(key)+'&_='+Date.now();
-    location.href=u;
+    const safeId=String(id||'').toUpperCase().trim();
+    if(!/^[A-Z0-9]{6,32}$/.test(safeId)){
+      reject(new Error('共有IDが正しくありません'));
+      return;
+    }
+
+    // v59: Apps Script ContentService の JSONP を script タグで取得します。
+    // fetch/CORS、iframe、postMessage、ページ遷移には依存しません。
+    const callback='tamaShareCb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    const script=document.createElement('script');
+    let finished=false;
+    let timer=null;
+
+    const cleanup=()=>{
+      if(timer)clearTimeout(timer);
+      try{delete window[callback]}catch(e){window[callback]=undefined}
+      if(script.parentNode)script.parentNode.removeChild(script);
+    };
+    const finish=(ok,value)=>{
+      if(finished)return;
+      finished=true;
+      cleanup();
+      ok?resolve(value):reject(value instanceof Error?value:new Error(String(value||'共有データを取得できませんでした')));
+    };
+
+    window[callback]=(obj)=>{
+      try{
+        if(!obj||typeof obj!=='object'){
+          finish(false,new Error('サーバーから不正な応答が返りました'));
+          return;
+        }
+        if(obj.ok&&obj.data){
+          finish(true,obj.data);
+          return;
+        }
+        if(obj.passwordRequired){
+          const pw=prompt('この共有データにはパスワードが設定されています。パスワードを入力してください。');
+          if(pw===null){
+            finish(false,new Error('パスワード入力をキャンセルしました'));
+            return;
+          }
+          cleanup();
+          // 現在のPromiseを維持したまま、認証後の取得を再試行します。
+          sha256Hex(pw).then(hash=>{
+            getShareFromServer(safeId,hash).then(v=>finish(true,v)).catch(e=>finish(false,e));
+          }).catch(e=>finish(false,e));
+          return;
+        }
+        finish(false,new Error(obj.error||'共有データを取得できませんでした'));
+      }catch(e){finish(false,e)}
+    };
+
+    script.async=true;
+    script.src=SHARE_SERVER_URL+'?id='+encodeURIComponent(safeId)
+      +'&passwordHash='+encodeURIComponent(passwordHash||'')
+      +'&callback='+encodeURIComponent(callback)
+      +'&_='+Date.now();
+    script.onerror=()=>finish(false,new Error('サーバーへ接続できませんでした'));
+    script.onload=()=>{
+      // onload は「JSファイルを受信した」だけで、callback実行を保証しません。
+      // callbackが来るまで待ちます。
+    };
+    document.head.appendChild(script);
+    timer=setTimeout(()=>finish(false,new Error('サーバーからの取得がタイムアウトしました（30秒）')),30000);
   });
 }
+
 function b64urlToBytes(s){
   s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');
   while(s.length%4)s+='=';
@@ -1365,7 +1420,6 @@ document.getElementById('shareQrFile').onchange=e=>loadShareQRFile(e.target.file
 (function initShareDate(){const d=document.getElementById('shareDate');if(d&&!d.value)d.value=new Date().toISOString().slice(0,10)})();
 (async function restoreShareFromURL(){
   try{
-    if(await handleShareRelayFragment())return;
     const u=new URL(location.href);
     const id=u.searchParams.get('share');
     if(id)setTimeout(()=>loadShareId(id),250);
