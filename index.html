@@ -1044,8 +1044,6 @@ async function postPngToServer(pngData){
   });
 }
 function getShareQrPayload(id){return APP_URL+'?sharepng='+encodeURIComponent(id)}
-function getShareQrPayload(id,imageUrl){return imageUrl||getDirectImageUrlFromId(id)}
-function getDirectImageUrlFromId(id){return SHARE_SERVER_URL+'?image=1&id='+encodeURIComponent(id)}
 async function createShareCard(){
   const status=document.getElementById('shareCodeStatus'),preview=document.getElementById('shareQrPreview'),button=document.getElementById('makeShareCode');
   try{
@@ -1072,7 +1070,11 @@ async function createShareCard(){
 function saveShareQR(){if(lastShareQrBlob)downloadData(lastShareQrObjectUrl,'tamagotchi_share_qr.png')}
 function extractShareTarget(v){
   if(typeof v!=='string')return null;const x=v.trim();
-  try{const u=new URL(x);const base=new URL(APP_URL);if(u.origin===base.origin&&u.pathname===base.pathname){const id=u.searchParams.get('sharepng');if(id)return {type:'server',id:id.toUpperCase()}}}catch(e){}
+  try{
+    const u=new URL(x),base=new URL(APP_URL),server=new URL(SHARE_SERVER_URL);
+    if(u.origin===base.origin&&u.pathname===base.pathname){const id=u.searchParams.get('sharepng');if(id&&/^[A-Z0-9]{6,32}$/i.test(id))return {type:'server',id:id.toUpperCase()}}
+    if(u.origin===server.origin&&u.pathname===server.pathname){const id=u.searchParams.get('id');const mode=u.searchParams.get('image')||u.searchParams.get('meta');if(id&&mode==='1'&&/^[A-Z0-9]{6,32}$/i.test(id))return {type:'server',id:id.toUpperCase()}}
+  }catch(e){}
   let m=x.match(/^TAMA-PNG:([A-Z0-9]{6,32})$/i);if(m)return {type:'server',id:m[1].toUpperCase()};
   return null;
 }
@@ -1484,12 +1486,21 @@ renderComposition();
   function extractShareId(v){
     if(typeof v!=='string') return null;
     const x=v.trim();
+    // Current format: GitHub Pages URL with ?sharepng=ID
     try{
       const u=new URL(x);
       const base=new URL(APP_URL);
       if(u.origin===base.origin && u.pathname===base.pathname){
         const id=u.searchParams.get('sharepng');
         if(id && /^[A-Z0-9]{6,32}$/i.test(id)) return id.toUpperCase();
+      }
+      // Older v75 QR: Apps Script URL with ?image=1&id=ID
+      // Also accept ?meta=1&id=ID so already-created QR images remain usable.
+      const server=new URL(SHARE_SERVER_URL);
+      if(u.origin===server.origin && u.pathname===server.pathname){
+        const id=u.searchParams.get('id');
+        const mode=u.searchParams.get('image')||u.searchParams.get('meta');
+        if(id && mode==='1' && /^[A-Z0-9]{6,32}$/i.test(id)) return id.toUpperCase();
       }
     }catch(e){}
     let m=x.match(/^TAMA-PNG:([A-Z0-9]{6,32})$/i);
