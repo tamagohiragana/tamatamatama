@@ -1230,12 +1230,12 @@ function getShareFromServer(id,passwordHash){
     script.async=true;
     script.src=SHARE_SERVER_URL+'?id='+encodeURIComponent(safeId)
       +'&passwordHash='+encodeURIComponent(passwordHash||'')
-      +'&callback='+encodeURIComponent(callback)
+      +'&prefix='+encodeURIComponent(callback)
       +'&_='+Date.now();
     script.onerror=()=>finish(false,new Error('サーバーへ接続できませんでした'));
     script.onload=()=>{
-      // onload は「JSファイルを受信した」だけで、callback実行を保証しません。
-      // callbackが来るまで待ちます。
+      // Apps Script ContentService may redirect to script.googleusercontent.com.
+      // A successful load without callback means the returned JavaScript did not execute.
     };
     document.head.appendChild(script);
     timer=setTimeout(()=>finish(false,new Error('サーバーからの取得がタイムアウトしました（30秒）')),30000);
