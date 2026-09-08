@@ -96,7 +96,7 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 }
 .folderLoadStatus{font-size:12px;opacity:.65;margin:4px 0 6px;}
 
-.shareMetaRow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.shareMetaRow label{display:flex;align-items:center;gap:5px;font-size:13px}.shareMetaRow input{padding:8px;border:1px solid #ccc;border-radius:8px;min-width:120px}.shareMetaRow label:last-child{flex:1}.shareMetaRow label:last-child input{flex:1;min-width:180px}.shareQrPreview{display:block;width:min(100%,280px);max-width:280px;height:auto;margin:12px auto;border:1px solid #eee;border-radius:10px;background:#fff}.fileBtn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#eee;cursor:pointer;font-size:13px}.fileBtn input{display:none}
+.shareMetaRow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.shareMetaRow label{display:flex;align-items:center;gap:5px;font-size:13px}.shareMetaRow input{padding:8px;border:1px solid #ccc;border-radius:8px;min-width:120px}.shareMetaRow label:last-child{flex:1}.shareMetaRow label:last-child input{flex:1;min-width:180px}.sharedPngResult{margin-top:10px;text-align:center}.shareQrPreview{display:block;width:min(100%,280px);max-width:280px;height:auto;margin:12px auto;border:1px solid #eee;border-radius:10px;background:#fff}.fileBtn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;background:#eee;cursor:pointer;font-size:13px}.fileBtn input{display:none}
 </style>
 <style id="sticker-layer-fix">
 /* v39: QRコードは常に最前面（スタンプより上） */
@@ -156,14 +156,14 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 <div class="actionRow"><button id="copy">ひらがなをコピー</button><button id="png" class="primary">PNG保存</button><button id="clear" class="gray">クリア</button></div><div class="shareRow"><button id="share" class="share">共有</button></div>
 <div class="shareCodeBox">
   <div class="badge">共有・サーバー保存QR</div>
-  <div class="small">共有データは一時的にサーバーへ保存し、QRコードには短い共有IDだけを入れます。オリジナル画像も復元できます。</div>
+  <div class="small">完成したPNG画像そのものをサーバーに保存し、QRコードからそのPNGを呼び出します。編集状態ではなく、出力されたPNGをそのまま復元します。</div>
   <div class="shareMetaRow"><label>日付 <input id="shareDate" type="date"></label><label>ひとこと <input id="shareComment" type="text" maxlength="60" placeholder="例：今日つくった！"></label></div>
   <div class="shareMetaRow"><label style="flex:1">パスワード（任意） <input id="sharePassword" type="password" maxlength="40" placeholder="空欄ならパスワードなし" autocomplete="new-password"></label></div>
   <div class="shareCodeRow"><button id="makeShareCode" type="button" class="share">共有QRを作製</button><button id="saveShareQR" type="button" class="primary" disabled>QR画像を保存</button></div>
   <canvas id="shareQrPreview" class="shareQrPreview"></canvas>
-  <div class="small">読み込み：この共有QR画像を選択すると、サーバーからデータを取得して自動復元します。パスワード付きの場合は入力を求めます。</div>
+  <div class="small">読み込み：この共有QR画像を選択すると、保存した完成PNGを呼び出して表示します。</div>
   <div class="shareCodeRow"><label class="fileBtn">共有QR画像を読み込む<input id="shareQrFile" type="file" accept="image/png,image/jpeg,image/webp"></label></div>
-  <div id="shareCodeStatus" class="small"></div>
+  <div id="shareCodeStatus" class="small"></div><div id="sharedPngResult" class="sharedPngResult"></div>
 </div>
 </section>
 
@@ -993,112 +993,12 @@ async function sharePng(target){
 }
 document.getElementById('share').onclick=()=>sharePng('共有');
 
-// --- Server share -----------------------------------------------------------
-// v73: share data is stored temporarily on Google Apps Script + Google Drive.
-// The QR code contains only the short share ID; the server stores the full composition state.
+// --- PNG share (v75) --------------------------------------------------------
+// Blank-slate design: the exact final PNG is uploaded to Google Drive.
+// The QR contains only a direct Drive image URL, so restoring does not need
+// JSONP, postMessage, iframe navigation, or a large URL payload.
 const SHARE_SERVER_URL='https://script.google.com/macros/s/AKfycbzmn5ZkZ6VER-pJJNqfPb4hj2FQoROBdK3rM24yZMBsxTCOtiQceWENjsY9UpsmkDQIrw/exec';
-let lastShareQrBlob=null;
-let lastShareQrObjectUrl=null;
-let lastShareId='';
-function shareAssetPath(src,folder){
-  if(!src)return null;
-  try{
-    if(src.startsWith('blob:') || src.startsWith('data:')) return null;
-    const u=new URL(src,location.href);
-    if(u.origin===location.origin && u.pathname.includes('/'+folder+'/')){
-      const i=u.pathname.indexOf('/'+folder+'/');
-      return folder+'/'+decodeURIComponent(u.pathname.slice(i+folder.length+2));
-    }
-    if(src.startsWith(folder+'/')) return src.split('?')[0];
-  }catch(e){}
-  return null;
-}
-// Share-only image optimization. Normal PNG export is unchanged.
-function imageToShareData(img){
-  return new Promise((resolve,reject)=>{
-    try{
-      const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
-      if(!iw||!ih) throw new Error('画像サイズを取得できません');
-      const candidates=[[512,0.78],[448,0.75],[384,0.72],[320,0.70],[256,0.68]];
-      let best=null;
-      for(const [max,q] of candidates){
-        const sc=Math.min(1,max/Math.max(iw,ih));
-        const c=document.createElement('canvas');
-        c.width=Math.max(1,Math.round(iw*sc));c.height=Math.max(1,Math.round(ih*sc));
-        const ctx=c.getContext('2d');ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(img,0,0,c.width,c.height);
-        let data=null,mime='image/webp';
-        try{data=c.toDataURL('image/webp',q)}catch(e){}
-        if(!data||!data.startsWith('data:image/webp')){mime='image/png';data=c.toDataURL('image/png')}
-        best={dataURL:data,mime,width:c.width,height:c.height};
-        if(data.length<=70000)break;
-      }
-      resolve(best);
-    }catch(e){reject(e)}
-  });
-}
-function dataURLToB64(dataURL){const i=dataURL.indexOf(',');return i>=0?dataURL.slice(i+1):dataURL}
-function b64ToDataURL(b64,mime='image/png'){return 'data:'+mime+';base64,'+b64}
-function textToBytes(str){return new TextEncoder().encode(str)}
-function bytesToText(bytes){return new TextDecoder().decode(bytes)}
-function makeShareStickerRecord(st){
-  const path=shareAssetPath(st.img?.src||'', 'stickers');
-  return {p:path||null,d:null,m:null,n:st.name||'スタンプ',x:Math.round(st.x*10)/10,y:Math.round(st.y*10)/10,w:Math.round(st.w*10)/10,h:Math.round(st.h*10)/10,r:Math.round(st.rot*100000)/100000,fx:!!st.flipX,fy:!!st.flipY,wo:!!st.whiteOutline,op:st.outlinePx||5};
-}
-async function makeShareState(){
-  // v73: full composition state. Standard assets are stored by path;
-  // original/local background and stickers are embedded as optimized images.
-  const state={
-    v:2,
-    t:String(input.value||''),
-    s:Number(size.value),
-    x:Number(posX.value),
-    y:Number(posY.value),
-    c:String(textColor||'#111111'),
-    o:!!useOutline.checked,
-    os:Number(outlineSize.value),
-    q:!!useQR.checked,
-    b:!!useBG.checked,
-    g:null,
-    a:[],
-    l:[]
-  };
-
-  // Background: normal GitHub asset -> path only. Original/local image -> embed.
-  if(customBG){
-    const packed=await imageToShareData(customBG);
-    state.g={p:null,d:dataURLToB64(packed.dataURL),m:packed.mime,w:packed.width,h:packed.height};
-  }else{
-    state.g={p:selectedBG||'backgrounds/blue.png',d:null,m:null};
-  }
-
-  // Stickers: keep the original layer order and all transform settings.
-  for(const st of stickers){
-    const rec=makeShareStickerRecord(st);
-    if(!rec.p && st.img){
-      const packed=await imageToShareData(st.img);
-      rec.d=dataURLToB64(packed.dataURL);
-      rec.m=packed.mime;
-      rec.iw=packed.width;
-      rec.ih=packed.height;
-    }
-    state.a.push(rec);
-  }
-  state.l=layerOrder.map(item=>{
-    if(item==='text') return 't';
-    const i=stickers.indexOf(item);
-    return i>=0?i:null;
-  }).filter(x=>x!==null);
-
-  return state;
-}
-
-function dateValue(){return document.getElementById('shareDate')?.value||new Date().toISOString().slice(0,10)}
-function formatDateJP(v){if(!v)return '';const a=v.split('-');return a.length===3?`${a[0]}/${a[1]}/${a[2]}`:v}
-async function sha256Hex(str){
-  if(!window.crypto?.subtle)throw new Error('このブラウザではパスワード機能を利用できません');
-  const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,'0')).join('');
-}
+let lastShareQrBlob=null,lastShareQrObjectUrl=null,lastShareId='',lastSharedPngUrl='';
 function createClientShareId(){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const bytes=new Uint8Array(10);
@@ -1106,119 +1006,110 @@ function createClientShareId(){
   else for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);
   return Array.from(bytes,b=>chars[b%chars.length]).join('');
 }
-async function postToShareServer(data){
-  // Send with a normal HTML form into a hidden iframe. We do NOT read the
-  // iframe contents and do NOT depend on CORS/postMessage/JSONP.
-  // The iframe's response can only arrive after Apps Script has finished
-  // doPost(), which creates the Drive file synchronously.
-  const id=createClientShareId();
-  const frameName='tamaShareFrame_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-  const iframe=document.createElement('iframe');
-  iframe.name=frameName;
-  iframe.style.display='none';
-  iframe.setAttribute('aria-hidden','true');
-  iframe.src='about:blank';
-  document.body.appendChild(iframe);
-
-  await new Promise(r=>setTimeout(r,80));
-
-  return new Promise((resolve,reject)=>{
-    let done=false;
-    const timeout=setTimeout(()=>finish(false,new Error('サーバーへの保存がタイムアウトしました')),60000);
-    function finish(ok,err){
-      if(done)return;
-      done=true;clearTimeout(timeout);iframe.onload=null;
-      setTimeout(()=>iframe.remove(),100);
-      if(ok)resolve(id);else reject(err);
-    }
-    iframe.onload=()=>{
-      // Apps Script may perform one or more redirects. Any load after the
-      // form was submitted means the POST response has reached the iframe.
-      finish(true);
-    };
-    try{
-      const form=document.createElement('form');
-      form.method='POST';
-      form.action=SHARE_SERVER_URL;
-      form.target=frameName;
-      form.enctype='application/x-www-form-urlencoded';
-      form.style.display='none';
-      const idInput=document.createElement('input');
-      idInput.type='hidden';idInput.name='id';idInput.value=id;
-      const dataInput=document.createElement('textarea');
-      dataInput.name='data';dataInput.value=JSON.stringify(data);
-      form.appendChild(idInput);form.appendChild(dataInput);
-      document.body.appendChild(form);
-      form.submit();
-      setTimeout(()=>form.remove(),1000);
-    }catch(e){finish(false,e)}
-  });
+function dataURLToB64(dataURL){const i=dataURL.indexOf(',');return i>=0?dataURL.slice(i+1):dataURL}
+function b64ToDataURL(b64,mime='image/png'){return 'data:'+mime+';base64,'+b64}
+function dateValue(){return document.getElementById('shareDate')?.value||new Date().toISOString().slice(0,10)}
+function formatDateJP(v){if(!v)return '';const a=v.split('-');return a.length===3?`${a[0]}/${a[1]}/${a[2]}`:v}
+async function sha256Hex(str){
+  if(!window.crypto?.subtle)throw new Error('このブラウザではパスワード機能を利用できません');
+  const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,'0')).join('');
 }
-function getShareUrl(id){return APP_URL+'?share='+encodeURIComponent(id)}
-function drawShareQR(payload,px){
+function drawShareQR(payload,px=280){
   qrcode.stringToBytes=str=>Array.from(new TextEncoder().encode(str));
-  const qr=qrcode(0,'H');qr.addData(payload,'Byte');qr.make();
+  const qr=qrcode(0,'M');qr.addData(payload,'Byte');qr.make();
   const count=qr.getModuleCount(),quiet=4,modules=count+quiet*2,size=px,mod=size/modules;
   const c=document.createElement('canvas');c.width=c.height=size;const ctx=c.getContext('2d');
   ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);ctx.fillStyle='#000';
-  for(let r=0;r<count;r++)for(let col=0;col<count;col++)if(qr.isDark(r,col))ctx.fillRect((col+quiet)*mod,(r+quiet)*mod,Math.ceil(mod)+.2,Math.ceil(mod)+.2);
+  for(let r=0;r<count;r++)for(let col=0;col<count;col++)if(qr.isDark(r,col))ctx.fillRect(Math.round((col+quiet)*mod),Math.round((r+quiet)*mod),Math.ceil(mod),Math.ceil(mod));
   return c;
 }
+async function postPngToServer(pngData){
+  const id=createClientShareId(),raw=dataURLToB64(pngData);
+  const comment=(document.getElementById('shareComment')?.value||'').slice(0,60),date=dateValue();
+  const password=document.getElementById('sharePassword')?.value||'',passwordHash=password?await sha256Hex(password):'';
+  const frameName='tamaPngUpload_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+  const iframe=document.createElement('iframe');iframe.name=frameName;iframe.style.display='none';iframe.src='about:blank';document.body.appendChild(iframe);
+  await new Promise(r=>setTimeout(r,80));
+  return new Promise((resolve,reject)=>{
+    let done=false;const timer=setTimeout(()=>finish(false,new Error('PNGのサーバー保存がタイムアウトしました')),60000);
+    function finish(ok,val){if(done)return;done=true;clearTimeout(timer);setTimeout(()=>iframe.remove(),100);ok?resolve(val):reject(val)}
+    iframe.onload=()=>finish(true,id);
+    try{
+      const form=document.createElement('form');form.method='POST';form.action=SHARE_SERVER_URL;form.target=frameName;form.enctype='application/x-www-form-urlencoded';form.style.display='none';
+      const add=(n,v)=>{const el=document.createElement('textarea');el.name=n;el.value=v;form.appendChild(el)};
+      add('id',id);add('png',raw);add('mime','image/png');add('date',date);add('comment',comment);add('passwordHash',passwordHash);
+      document.body.appendChild(form);form.submit();setTimeout(()=>form.remove(),1500);
+    }catch(e){finish(false,e)}
+  });
+}
+function getShareQrPayload(id){return APP_URL+'?sharepng='+encodeURIComponent(id)}
+function getShareQrPayload(id,imageUrl){return imageUrl||getDirectImageUrlFromId(id)}
+function getDirectImageUrlFromId(id){return SHARE_SERVER_URL+'?image=1&id='+encodeURIComponent(id)}
 async function createShareCard(){
-  const status=document.getElementById('shareCodeStatus'),preview=document.getElementById('shareQrPreview');
-  const button=document.getElementById('makeShareCode');
+  const status=document.getElementById('shareCodeStatus'),preview=document.getElementById('shareQrPreview'),button=document.getElementById('makeShareCode');
   try{
-    button.disabled=true;status.textContent='共有データを準備しています…';
-    const state=await makeShareState();
-    const password=document.getElementById('sharePassword')?.value||'';
-    const passwordHash=password?await sha256Hex(password):'';
-    const pack={v:1,d:dateValue(),m:(document.getElementById('shareComment')?.value||'').slice(0,60),p:passwordHash,s:state};
-    const bytes=textToBytes(JSON.stringify(pack));
-    status.textContent=`共有データ ${bytes.length.toLocaleString()} byte をサーバーへ保存しています…`;
-    const id=await postToShareServer(pack);
-    lastShareId=id;
-    const qr=drawShareQR(getShareUrl(id),280);
+    button.disabled=true;
+    status.textContent='完成PNGを作成しています…';
+    const pngData=await makePngData();
+    const byteLength=Math.floor((dataURLToB64(pngData).length*3)/4);
+    status.textContent=`完成PNG ${byteLength.toLocaleString()} byte をサーバーへ保存しています…`;
+    const id=await postPngToServer(pngData);lastShareId=id;
+    const payload=getShareQrPayload(id),qr=drawShareQR(payload,280);
     const pad=20,qrPx=280,bottom=108,cardW=qrPx+pad*2,cardH=pad+qrPx+bottom;
     const out=document.createElement('canvas');out.width=cardW;out.height=cardH;const ctx=out.getContext('2d');
     ctx.fillStyle='#fff';ctx.fillRect(0,0,cardW,cardH);ctx.drawImage(qr,pad,pad);
     ctx.fillStyle='#222';ctx.textAlign='left';ctx.font='bold 20px sans-serif';ctx.fillText('たまごっち文字 共有QR',pad,pad+qrPx+34);
     ctx.font='17px sans-serif';ctx.fillText(formatDateJP(dateValue()),pad,pad+qrPx+67);
-    const comment=document.getElementById('shareComment')?.value||'';if(comment){ctx.textAlign='right';ctx.font='17px sans-serif';ctx.fillText(comment.slice(0,60),cardW-pad,pad+qrPx+67)}
+    const comment=document.getElementById('shareComment')?.value||'';if(comment){ctx.textAlign='right';ctx.fillText(comment.slice(0,60),cardW-pad,pad+qrPx+67)}
     ctx.textAlign='left';ctx.font='14px monospace';ctx.fillText('ID: '+id,pad,pad+qrPx+98);
     preview.width=cardW;preview.height=cardH;preview.getContext('2d').drawImage(out,0,0);
-    lastShareQrBlob=await new Promise(res=>out.toBlob(res,'image/png'));
-    if(lastShareQrObjectUrl)URL.revokeObjectURL(lastShareQrObjectUrl);lastShareQrObjectUrl=URL.createObjectURL(lastShareQrBlob);
+    lastShareQrBlob=await new Promise(res=>out.toBlob(res,'image/png'));if(lastShareQrObjectUrl)URL.revokeObjectURL(lastShareQrObjectUrl);lastShareQrObjectUrl=URL.createObjectURL(lastShareQrBlob);
     document.getElementById('saveShareQR').disabled=false;
-    status.textContent=`共有QRを作製しました。共有ID：${id}（保存期間はサーバー設定により期限があります）`;
-  }catch(e){console.error(e);status.textContent='共有QRを作製できませんでした：'+(e.message||e)}
-  finally{button.disabled=false}
+    status.textContent=`共有QRを作製しました。ID：${id}（完成PNGそのものを保存しています）`;
+  }catch(e){console.error(e);status.textContent='共有QRを作製できませんでした：'+(e.message||e)}finally{button.disabled=false}
 }
-function saveShareQR(){if(!lastShareQrBlob)return;downloadData(lastShareQrObjectUrl,'tamagotchi_share_qr.png')}
-function extractShareId(v){
-  if(typeof v!=='string')return null;
-  try{
-    const u=new URL(v);const base=new URL(APP_URL);
-    if(u.origin===base.origin&&u.pathname===base.pathname){const id=u.searchParams.get('share');if(id)return id}
-  }catch(e){}
-  const m=v.match(/^TAMA-SHARE:([A-Z0-9]{6,32})$/i);return m?m[1].toUpperCase():null;
+function saveShareQR(){if(lastShareQrBlob)downloadData(lastShareQrObjectUrl,'tamagotchi_share_qr.png')}
+function extractShareTarget(v){
+  if(typeof v!=='string')return null;const x=v.trim();
+  try{const u=new URL(x);const base=new URL(APP_URL);if(u.origin===base.origin&&u.pathname===base.pathname){const id=u.searchParams.get('sharepng');if(id)return {type:'server',id:id.toUpperCase()}}}catch(e){}
+  let m=x.match(/^TAMA-PNG:([A-Z0-9]{6,32})$/i);if(m)return {type:'server',id:m[1].toUpperCase()};
+  return null;
 }
-function getShareFromServer(id,passwordHash){
+async function getPngUrlFromServer(id,passwordHash=''){
   return new Promise((resolve,reject)=>{
-    const safeId=String(id||'').toUpperCase().trim();
-    if(!/^[A-Z0-9]{6,32}$/.test(safeId)){reject(new Error('共有IDが正しくありません'));return}
-    if(passwordHash){reject(new Error('v63最小テストではパスワードなしで試してください'));return}
-    const status=document.getElementById('shareCodeStatus');
-    if(status)status.textContent='共有データを取得しています…';
-    // v63: no cross-origin response is consumed by GitHub Pages.
-    // The Apps Script web app performs the Drive read and redirects the browser
-    // back to GitHub Pages with a short, URL-safe base64 payload.
-    const url=SHARE_SERVER_URL+'?mode=relay&id='+encodeURIComponent(safeId)+'&returnUrl='+encodeURIComponent(APP_URL);
-    window.location.assign(url);
-    // The page will navigate away; this promise is only for the caller's control flow.
-    setTimeout(()=>reject(new Error('復元ページへ移動できませんでした')),15000);
+    const safe=String(id||'').toUpperCase().trim();if(!/^[A-Z0-9]{6,32}$/.test(safe)){reject(new Error('共有IDが正しくありません'));return}
+    const cb='__tamaPng_'+Date.now()+'_'+Math.random().toString(36).slice(2).replace(/[^a-z0-9]/gi,'');
+    const script=document.createElement('script');let done=false,timer=null;
+    const clean=()=>{if(timer)clearTimeout(timer);script.remove();try{delete window[cb]}catch(e){window[cb]=undefined}};
+    window[cb]=(obj)=>{if(done)return;done=true;clean();if(obj?.ok&&obj.imageUrl)resolve(obj.imageUrl);else if(obj?.passwordRequired)reject(new Error('__PASSWORD_REQUIRED__'));else reject(new Error(obj?.error||'共有PNGを取得できませんでした'))};
+    script.onerror=()=>{if(done)return;done=true;clean();reject(new Error('サーバーとの通信に失敗しました'))};
+    script.src=SHARE_SERVER_URL+'?meta=1&id='+encodeURIComponent(safe)+'&passwordHash='+encodeURIComponent(passwordHash)+'&callback='+encodeURIComponent(cb)+'&_='+Date.now();
+    document.head.appendChild(script);timer=setTimeout(()=>{if(done)return;done=true;clean();reject(new Error('サーバーからの応答がありません'))},15000);
   });
 }
-
+async function loadSharedPng(target,passwordHash=''){
+  const status=document.getElementById('shareCodeStatus');
+  const url=target?.type==='server'?await getPngUrlFromServer(target.id,passwordHash):'';
+  const img=new Image();img.decoding='async';img.referrerPolicy='no-referrer';
+  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('共有PNGを表示できませんでした'));img.src=url});
+  lastSharedPngUrl=url;
+  const panel=document.getElementById('sharedPngResult');
+  if(panel){panel.innerHTML='';const title=document.createElement('div');title.className='small';title.textContent='共有PNGを取得しました。';panel.appendChild(title);const view=document.createElement('img');view.src=url;view.alt='共有されたたまごっち文字PNG';view.style.display='block';view.style.maxWidth='360px';view.style.width='100%';view.style.height='auto';view.style.margin='10px auto';view.style.border='2px solid #d7e1ec';view.style.borderRadius='14px';panel.appendChild(view);const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.textContent='共有PNGを開く';a.style.display='inline-block';a.style.margin='4px';panel.appendChild(a)}
+  status.textContent='共有PNGの取得・表示が完了しました。';
+}
+async function readShareTargetFromQRFile(file){
+  if(!file) return null;const decode=v=>extractShareTarget(String(v||''));
+  try{if('BarcodeDetector' in window){const formats=await BarcodeDetector.getSupportedFormats();if(formats.includes('qr_code')){const bmp=await createImageBitmap(file);try{const detector=new BarcodeDetector({formats:['qr_code']});const found=await detector.detect(bmp);for(const item of found){const t=decode(item.rawValue);if(t)return t}}finally{bmp.close()}}}}catch(e){console.warn('BarcodeDetector:',e)}
+  if(typeof jsQR!=='function')throw new Error('QR読み取り機能を読み込めませんでした');
+  const img=new Image(),url=URL.createObjectURL(file);try{await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(new Error('画像を読み込めませんでした'));img.src=url});const W=img.naturalWidth,H=img.naturalHeight;const scans=[];const add=(sx,sy,sw,sh)=>{const c=document.createElement('canvas');c.width=Math.round(sw);c.height=Math.round(sh);const x=c.getContext('2d',{willReadFrequently:true});x.imageSmoothingEnabled=false;x.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);scans.push(c)};const q=Math.min(W,H);add(0,0,q,q);add(0,0,W,H);for(const c of scans){const vars=[c];if(Math.min(c.width,c.height)<900){const sc=Math.min(4,900/Math.min(c.width,c.height));const z=document.createElement('canvas');z.width=Math.round(c.width*sc);z.height=Math.round(c.height*sc);const zc=z.getContext('2d',{willReadFrequently:true});zc.imageSmoothingEnabled=false;zc.drawImage(c,0,0,z.width,z.height);vars.push(z)}for(const v of vars){const d=v.getContext('2d',{willReadFrequently:true}).getImageData(0,0,v.width,v.height);let r=jsQR(d.data,v.width,v.height,{inversionAttempts:'attemptBoth'}),t=decode(r?.data);if(t)return t}}}finally{URL.revokeObjectURL(url)}return null;
+}
+async function loadShareQRFile(file){
+  const status=document.getElementById('shareCodeStatus'),inputEl=document.getElementById('shareQrFile');
+  try{if(!file)return;status.textContent='共有QRを読み取っています…';const target=await readShareTargetFromQRFile(file);if(!target)throw new Error('共有QRコードを読み取れませんでした');status.textContent='共有PNGを取得しています…';if(target.type==='server'){try{await loadSharedPng(target)}catch(e){if(String(e?.message)==='__PASSWORD_REQUIRED__'){const pw=prompt('この共有PNGにはパスワードが設定されています。パスワードを入力してください。');if(pw===null)throw new Error('パスワード入力をキャンセルしました');await loadSharedPng({type:'server',id:target.id,passwordHash:await sha256Hex(pw)})}else throw e}}else await loadSharedPng(target)}catch(e){console.error(e);status.textContent='共有PNGを読み込めませんでした：'+(e.message||e)}finally{if(inputEl)inputEl.value=''}
+}
+document.getElementById('makeShareCode').onclick=createShareCard;document.getElementById('saveShareQR').onclick=saveShareQR;document.getElementById('shareQrFile').onchange=async e=>{const el=e.target;el.disabled=true;try{await loadShareQRFile(el.files?.[0])}finally{el.disabled=false}};
+(function initShareDate(){const d=document.getElementById('shareDate');if(d&&!d.value)d.value=new Date().toISOString().slice(0,10)})();
 function b64urlToBytes(s){
   s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');
   while(s.length%4)s+='=';
@@ -1274,21 +1165,6 @@ async function handleShareRelayFragment(){
     if(status)status.textContent='共有データを読み込めませんでした：'+(e.message||e);
   }
   return false;
-}
-async function imageFromSource(src){
-  return new Promise((resolve,reject)=>{
-    if(!src){reject(new Error('画像データがありません'));return;}
-    const im=new Image();
-    im.onload=()=>resolve(im);
-    im.onerror=()=>reject(new Error('共有画像を読み込めませんでした'));
-    im.src=src;
-  });
-}
-function normalizedAssetURL(path){
-  if(!path)return null;
-  const s=String(path);
-  if(/^https?:\/\//i.test(s)||s.startsWith('data:')||s.startsWith('blob:')) return s;
-  return s.replace(/^\/+/, '')+'?v='+Date.now();
 }
 async function loadSharePackageDirect(pack){
   const status=document.getElementById('shareCodeStatus');
@@ -1413,10 +1289,25 @@ document.getElementById('shareQrFile').onchange=async e=>{const el=e.target;el.d
 (async function restoreShareFromURL(){
   try{
     const u=new URL(location.href);
-    const id=u.searchParams.get('share');
-    if(id)setTimeout(()=>loadShareId(id),250);
+    const id=u.searchParams.get('sharepng');
+    if(id)setTimeout(()=>loadShareQRTarget({type:'server',id:id}),250);
   }catch(e){console.error(e)}
 })();
+async function loadShareQRTarget(target){
+  const status=document.getElementById('shareCodeStatus');
+  try{
+    if(target?.type!=='server')throw new Error('共有PNGのリンクが正しくありません');
+    status.textContent='共有PNGを取得しています…';
+    try{await loadSharedPng(target,'');}
+    catch(e){
+      if(String(e?.message)==='__PASSWORD_REQUIRED__'){
+        const pw=prompt('この共有PNGにはパスワードが設定されています。パスワードを入力してください。');
+        if(pw===null)throw new Error('パスワード入力をキャンセルしました');
+        await loadSharedPng(target,await sha256Hex(pw));
+      }else throw e;
+    }
+  }catch(e){console.error(e);status.textContent='共有PNGを読み込めませんでした：'+(e.message||e)}
+}
 
 
 function loadFile(file){
@@ -1531,24 +1422,6 @@ document.getElementById('recognize').onclick=async()=>{
 };
 function escapeHtml(s){return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 document.getElementById('copy2').onclick=()=>navigator.clipboard.writeText(document.getElementById('recognized').textContent);
-(async function restoreShareFromRelay(){
-  try{
-    const u=new URL(location.href);
-    const relay=u.searchParams.get('relay');
-    if(!relay)return;
-    u.searchParams.delete('relay');
-    history.replaceState(null,'',u.pathname+(u.search||''));
-    const bytes=b64urlToBytes(relay);
-    const pack=JSON.parse(new TextDecoder().decode(bytes));
-    const status=document.getElementById('shareCodeStatus');
-    await restoreSharePackage(pack,status);
-  }catch(e){
-    console.error('v63 relay restore:',e);
-    const status=document.getElementById('shareCodeStatus');
-    if(status)status.textContent='共有データを読み込めませんでした：'+(e.message||e);
-  }
-})();
-
 (function restoreTextFromURL(){
   try{
     const u=new URL(location.href);
@@ -1601,16 +1474,6 @@ renderComposition();
 </script>
 
 <script>
-(function(){
-  const s=document.getElementById('shareCodeStatus');
-  const box=s?.closest('.shareCodeBox');
-  if(box){
-    const n=document.createElement('div');
-    n.className='small';
-    n.style.fontWeight='700';
-    n.textContent='【v63 通信テスト】今回は文字・日付・ひとことだけを保存・復元します。パスワードは空欄でテストしてください。';
-    box.insertBefore(n,box.firstChild);
-  }
-})();
+
 </script>
 </body></html>
