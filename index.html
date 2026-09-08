@@ -1167,13 +1167,20 @@ function getShareFromServer(id,passwordHash){
     if(passwordHash){reject(new Error('v63最小テストではパスワードなしで試してください'));return}
     const status=document.getElementById('shareCodeStatus');
     if(status)status.textContent='サーバーから共有データを取得しています…';
-    // v64: relay is handled by Apps Script and returns to the top-level GitHub Pages window.
-    // The Apps Script web app performs the Drive read and redirects the browser
-    // back to GitHub Pages with a short, URL-safe base64 payload.
+    // v67: DO NOT navigate this GitHub Pages window to Apps Script.
+    // Open the relay in a separate tab/window. Apps Script can then navigate
+    // the opener (this GitHub Pages window) back to the restored URL and close itself.
     const url=SHARE_SERVER_URL+'?mode=relay&id='+encodeURIComponent(safeId)+'&returnUrl='+encodeURIComponent(APP_URL);
-    window.location.assign(url);
-    // The page will navigate away; this promise is only for the caller's control flow.
-    setTimeout(()=>reject(new Error('復元ページへ移動できませんでした')),15000);
+    const relayWin=window.open(url,'tamaShareRelay','popup,width=520,height=760');
+    if(!relayWin){
+      status.textContent='復元用の画面を開けませんでした。ポップアップを許可してください。';
+      reject(new Error('ポップアップがブロックされています'));
+      return;
+    }
+    status.textContent='共有データを取得しています…別ウィンドウから元のページへ戻ります。';
+    // The opener will be redirected by Apps Script. This window stays on GitHub Pages.
+    setTimeout(()=>{ if(!relayWin.closed) relayWin.focus(); },500);
+    setTimeout(()=>reject(new Error('共有データの復元に時間がかかっています')),30000);
   });
 }
 
