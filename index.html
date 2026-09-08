@@ -1163,109 +1163,17 @@ function extractShareId(v){
 function getShareFromServer(id,passwordHash){
   return new Promise((resolve,reject)=>{
     const safeId=String(id||'').toUpperCase().trim();
-    if(!/^[A-Z0-9]{6,32}$/.test(safeId)){
-      reject(new Error('共有IDが正しくありません')); return;
-    }
-
+    if(!/^[A-Z0-9]{6,32}$/.test(safeId)){reject(new Error('共有IDが正しくありません'));return}
+    if(passwordHash){reject(new Error('v63最小テストではパスワードなしで試してください'));return}
     const status=document.getElementById('shareCodeStatus');
-    const loadBtn=document.getElementById('shareQrFile');
-    const loadLabel=loadBtn?.closest('label');
-    const setBusy=(busy)=>{
-      if(loadBtn)loadBtn.disabled=!!busy;
-      if(loadLabel){
-        loadLabel.style.pointerEvents=busy?'none':'';
-        loadLabel.style.opacity=busy?'0.55':'';
-      }
-    };
-    setBusy(true);
-    if(status)status.textContent='共有データを取得しています…';
-
-    let finished=false, timer=null, script=null, iframe=null, request='';
-    const callback='tamaShareCb_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);
-    const cleanup=()=>{
-      if(timer)clearTimeout(timer);
-      timer=null;
-      try{delete window[callback]}catch(e){window[callback]=undefined}
-      if(script?.parentNode)script.parentNode.removeChild(script);
-      window.removeEventListener('message',onMessage);
-      if(iframe){try{iframe.remove()}catch(e){}}
-      setBusy(false);
-    };
-    const finish=(ok,value)=>{
-      if(finished)return;
-      finished=true;
-      cleanup();
-      if(ok)resolve(value);
-      else reject(value instanceof Error?value:new Error(String(value||'共有データを取得できませんでした')));
-    };
-    const handleObject=(obj)=>{
-      if(!obj||typeof obj!=='object'){
-        finish(false,new Error('サーバーから不正な応答が返りました')); return;
-      }
-      if(obj.ok&&obj.data){finish(true,obj.data);return;}
-      if(obj.passwordRequired){
-        cleanup();
-        const pw=prompt('この共有データにはパスワードが設定されています。パスワードを入力してください。');
-        if(pw===null){reject(new Error('パスワード入力をキャンセルしました'));return;}
-        sha256Hex(pw).then(hash=>{
-          getShareFromServer(safeId,hash).then(resolve).catch(reject);
-        }).catch(reject);
-        return;
-      }
-      finish(false,new Error(obj.error||'共有データを取得できませんでした'));
-    };
-
-    // JSONP: Apps Script ContentService returns callback({...});
-    window[callback]=handleObject;
-    script=document.createElement('script');
-    script.async=true;
-    script.src=SHARE_SERVER_URL
-      +'?id='+encodeURIComponent(safeId)
-      +'&passwordHash='+encodeURIComponent(passwordHash||'')
-      +'&prefix='+encodeURIComponent(callback)
-      +'&callback='+encodeURIComponent(callback)
-      +'&_='+Date.now();
-    script.onload=()=>{
-      // A valid JSONP response calls the callback synchronously.
-      // If it didn't, switch to the iframe fallback after a short grace period.
-      setTimeout(()=>{
-        if(!finished)startIframeFallback();
-      },1200);
-    };
-    script.onerror=()=>startIframeFallback();
-    document.head.appendChild(script);
-
-    function onMessage(ev){
-      const obj=ev.data;
-      if(!obj||obj.type!=='TAMA_SHARE_DATA'||obj.request!==request)return;
-      handleObject(obj);
-    }
-
-    function startIframeFallback(){
-      if(finished||iframe)return;
-      if(script?.parentNode)script.parentNode.removeChild(script);
-      try{delete window[callback]}catch(e){window[callback]=undefined}
-      if(status)status.textContent='共有サーバーへ再接続しています…';
-      request='tama_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);
-      iframe=document.createElement('iframe');
-      iframe.style.position='fixed';
-      iframe.style.width='1px';
-      iframe.style.height='1px';
-      iframe.style.left='-10000px';
-      iframe.style.top='-10000px';
-      iframe.style.border='0';
-      iframe.setAttribute('aria-hidden','true');
-      window.addEventListener('message',onMessage);
-      iframe.src=SHARE_SERVER_URL
-        +'?mode=iframe&id='+encodeURIComponent(safeId)
-        +'&passwordHash='+encodeURIComponent(passwordHash||'')
-        +'&request='+encodeURIComponent(request)
-        +'&_='+Date.now();
-      document.body.appendChild(iframe);
-      timer=setTimeout(()=>{
-        finish(false,new Error('共有サーバーから応答がありません。Apps Scriptの「新しいデプロイ」が反映されているか確認してください。'));
-      },10000);
-    }
+    if(status)status.textContent='共有データを取得しています…（一度サーバーを経由して元のページへ戻ります）';
+    // v63: no cross-origin response is consumed by GitHub Pages.
+    // The Apps Script web app performs the Drive read and redirects the browser
+    // back to GitHub Pages with a short, URL-safe base64 payload.
+    const url=SHARE_SERVER_URL+'?mode=relay&id='+encodeURIComponent(safeId)+'&returnUrl='+encodeURIComponent(APP_URL);
+    window.location.assign(url);
+    // The page will navigate away; this promise is only for the caller's control flow.
+    setTimeout(()=>reject(new Error('復元ページへ移動できませんでした')),15000);
   });
 }
 
@@ -1346,7 +1254,7 @@ async function restoreSharePackage(pack,status){
 async function loadShareId(id){
   const status=document.getElementById('shareCodeStatus');
   try{
-    status.textContent='共有IDを確認しています…（サーバーで復元データを準備しています）';
+    status.textContent='共有IDを確認しています…';
     await getShareFromServer(id,'');
   }catch(e){console.error(e);status.textContent='共有データを読み込めませんでした：'+(e.message||e)}
 }
@@ -1443,7 +1351,7 @@ async function loadShareQRFile(file){
 }
 document.getElementById('makeShareCode').onclick=createShareCard;
 document.getElementById('saveShareQR').onclick=saveShareQR;
-document.getElementById('shareQrFile').onchange=e=>loadShareQRFile(e.target.files?.[0]);
+document.getElementById('shareQrFile').onchange=async e=>{const el=e.target;el.disabled=true;try{await loadShareQRFile(el.files?.[0]);}finally{el.disabled=false;}};
 (function initShareDate(){const d=document.getElementById('shareDate');if(d&&!d.value)d.value=new Date().toISOString().slice(0,10)})();
 (async function restoreShareFromURL(){
   try{
@@ -1569,24 +1477,16 @@ document.getElementById('copy2').onclick=()=>navigator.clipboard.writeText(docum
 (async function restoreShareFromRelay(){
   try{
     const u=new URL(location.href);
-    let relay=u.searchParams.get('relay');
-    let fromHash=false;
-    if(!relay){
-      const h=String(location.hash||'');
-      const m=h.match(/^#TAMA_SERVER_GZ=(.+)$/);
-      if(m){relay=decodeURIComponent(m[1]);fromHash=true;}
-    }
+    const relay=u.searchParams.get('relay');
     if(!relay)return;
     u.searchParams.delete('relay');
-    u.hash='';
     history.replaceState(null,'',u.pathname+(u.search||''));
     const bytes=b64urlToBytes(relay);
-    if(bytes.length>3000000)throw new Error('復元データが大きすぎます');
-    const pack=await decodeServerPayloadGzip(relay);
+    const pack=JSON.parse(new TextDecoder().decode(bytes));
     const status=document.getElementById('shareCodeStatus');
     await restoreSharePackage(pack,status);
   }catch(e){
-    console.error('v68 relay restore:',e);
+    console.error('v63 relay restore:',e);
     const status=document.getElementById('shareCodeStatus');
     if(status)status.textContent='共有データを読み込めませんでした：'+(e.message||e);
   }
