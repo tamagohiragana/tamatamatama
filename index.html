@@ -1167,7 +1167,7 @@ function getShareFromServer(id,passwordHash){
     if(passwordHash){reject(new Error('v63最小テストではパスワードなしで試してください'));return}
     const status=document.getElementById('shareCodeStatus');
     if(status)status.textContent='サーバーから共有データを取得しています…';
-    // v63: no cross-origin response is consumed by GitHub Pages.
+    // v64: relay is handled by Apps Script and returns to the top-level GitHub Pages window.
     // The Apps Script web app performs the Drive read and redirects the browser
     // back to GitHub Pages with a short, URL-safe base64 payload.
     const url=SHARE_SERVER_URL+'?mode=relay&id='+encodeURIComponent(safeId)+'&returnUrl='+encodeURIComponent(APP_URL);
@@ -1254,7 +1254,7 @@ async function restoreSharePackage(pack,status){
 async function loadShareId(id){
   const status=document.getElementById('shareCodeStatus');
   try{
-    status.textContent='共有IDを確認しています…';
+    status.textContent='共有IDを確認しています…（サーバーで復元データを準備しています）';
     await getShareFromServer(id,'');
   }catch(e){console.error(e);status.textContent='共有データを読み込めませんでした：'+(e.message||e)}
 }
