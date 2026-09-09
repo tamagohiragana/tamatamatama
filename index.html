@@ -1222,6 +1222,152 @@ const saveBtn=document.getElementById('saveShareQR');if(saveBtn)saveBtn.onclick=
 (function initShareDate(){const d=document.getElementById('shareDate');if(d&&!d.value)d.value=new Date().toISOString().slice(0,10)})();
 render();
 renderComposition();
+
+// v92: Restore the proven section-④ image -> hiragana recognition path.
+// v91 accidentally omitted the reverse-conversion handlers/loaded image state.
+let loadedFile = null;
+let loadedImage = null;
+
+function loadFile(file){
+  loadedFile=file||null;
+  loadedImage=null;
+  if(!file)return;
+  const url=URL.createObjectURL(file), img=new Image();
+  img.onload=()=>{
+    loadedImage=img;
+    const c=document.getElementById('previewCanvas');
+    const max=900;
+    const sc=Math.min(1,max/img.naturalWidth);
+    c.width=Math.round(img.naturalWidth*sc);
+    c.height=Math.round(img.naturalHeight*sc);
+    const cx=c.getContext('2d');
+    cx.imageSmoothingEnabled=false;
+    cx.clearRect(0,0,c.width,c.height);
+    cx.drawImage(img,0,0,c.width,c.height);
+    URL.revokeObjectURL(url);
+  };
+  img.onerror=()=>URL.revokeObjectURL(url);
+  img.src=url;
+}
+
+document.getElementById('file').onchange=e=>loadFile(e.target.files?.[0]);
+const reverseDrop=document.getElementById('drop');
+if(reverseDrop){
+  reverseDrop.ondragover=e=>{e.preventDefault();reverseDrop.style.background='#f2f2f2'};
+  reverseDrop.ondragleave=()=>reverseDrop.style.background='';
+  reverseDrop.ondrop=e=>{e.preventDefault();reverseDrop.style.background='';loadFile(e.dataTransfer.files?.[0])};
+}
+
+async function readEmbeddedText(file){
+  if(!file || !file.name.toLowerCase().endsWith('.png')) return null;
+  const b=new Uint8Array(await file.arrayBuffer());
+  if(b.length<8 || b[0]!==137 || b[1]!==80 || b[2]!==78 || b[3]!==71) return null;
+  const dec=new TextDecoder();
+  let p=8;
+  while(p+12<=b.length){
+    const len=((b[p]<<24)>>>0)|(b[p+1]<<16)|(b[p+2]<<8)|b[p+3];
+    if(p+12+len>b.length)return null;
+    const type=dec.decode(b.subarray(p+4,p+8));
+    const dat=b.subarray(p+8,p+8+len);
+    if(type==='tEXt'){
+      const zero=dat.indexOf(0);
+      if(zero>=0 && dec.decode(dat.subarray(0,zero))==='tamagotchi-text'){
+        const v=dec.decode(dat.subarray(zero+1));
+        if(v.startsWith('v1:')){
+          try{const obj=JSON.parse(decodeURIComponent(v.slice(3)));if(typeof obj.text==='string')return obj.text}catch(e){}
+        }
+      }
+    }
+    p+=12+len;
+    if(type==='IEND')break;
+  }
+  return null;
+}
+
+// Fallback for images whose metadata and embedded QR were stripped.
+async function fallbackRecognize(){
+  if(!loadedImage)return '';
+  const c=document.createElement('canvas');c.width=loadedImage.naturalWidth;c.height=loadedImage.naturalHeight;
+  const ctx=c.getContext('2d');ctx.drawImage(loadedImage,0,0);
+  const src=ctx.getImageData(0,0,c.width,c.height);
+  const gray=new Float32Array(c.width*c.height);
+  for(let i=0,j=0;i<src.data.length;i+=4,j++){
+    const a=src.data[i+3]/255;
+    gray[j]=(0.299*src.data[i]+0.587*src.data[i+1]+0.114*src.data[i+2])*a+255*(1-a);
+  }
+  const row=new Int32Array(c.height);
+  for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(gray[y*c.width+x]<235)row[y]++;
+  const rows=[];let sy=-1;
+  for(let y=0;y<c.height;y++){
+    if(row[y]>0&&sy<0)sy=y;
+    if((row[y]===0||y===c.height-1)&&sy>=0){rows.push([sy,row[y]===0?y-1:y]);sy=-1}
+  }
+  if(!rows.length)return '';
+  const temps=[];
+  for(const [ch,path] of Object.entries(MAP)){
+    const im=new Image();im.src=path;
+    await new Promise(r=>{im.onload=r;im.onerror=r});
+    if(!im.naturalWidth)continue;
+    const tc=document.createElement('canvas');tc.width=im.naturalWidth;tc.height=im.naturalHeight;
+    const tx=tc.getContext('2d');tx.drawImage(im,0,0);
+    const d=tx.getImageData(0,0,tc.width,tc.height);
+    let x0=tc.width,y0=tc.height,x1=-1,y1=-1;
+    for(let y=0;y<tc.height;y++)for(let x=0;x<tc.width;x++){
+      const i=(y*tc.width+x)*4;
+      if(d.data[i+3]>20&&(d.data[i]<230||d.data[i+1]<230||d.data[i+2]<230)){x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)}
+    }
+    if(x1>=x0)temps.push({ch,im,box:[x0,y0,x1,y1]});
+  }
+  let result='';
+  for(let ri=0;ri<rows.length;ri++){
+    const [y0,y1]=rows[ri],col=new Int32Array(c.width);
+    for(let x=0;x<c.width;x++)for(let y=y0;y<=y1;y++)if(gray[y*c.width+x]<235)col[x]++;
+    const seg=[];let sx=-1;
+    for(let x=0;x<c.width;x++){
+      if(col[x]>0&&sx<0)sx=x;
+      if((col[x]===0||x===c.width-1)&&sx>=0){seg.push([sx,col[x]===0?x-1:x]);sx=-1}
+    }
+    const merged=[];
+    for(const q of seg){if(!merged.length||q[0]-merged.at(-1)[1]>2)merged.push(q);else merged.at(-1)[1]=q[1]}
+    for(let si=0;si<merged.length;si++){
+      const [x0,x1]=merged[si],w=x1-x0+1,h=y1-y0+1;
+      let n=0;for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)if(gray[y*c.width+x]<235)n++;
+      const dens=n/(w*h);let best='?',bestScore=1e9;
+      for(const t of temps){
+        const tw=t.box[2]-t.box[0]+1,th=t.box[3]-t.box[1]+1;
+        const tc=document.createElement('canvas');tc.width=t.im.naturalWidth;tc.height=t.im.naturalHeight;
+        const q=tc.getContext('2d');q.drawImage(t.im,0,0);
+        const dd=q.getImageData(t.box[0],t.box[1],tw,th).data;let tn=0;
+        for(let i=0;i<dd.length;i+=4)if(dd[i+3]>20&&dd[i]<235)tn++;
+        const td=tn/(tw*th);
+        const score=Math.abs(Math.log((w/h)/(tw/th)))+Math.abs(dens-td);
+        if(score<bestScore){bestScore=score;best=t.ch}
+      }
+      result+=bestScore<0.8?best:'?';
+      if(si<merged.length-1&&merged[si+1][0]-x1>Math.max(10,w*0.8))result+=' ';
+    }
+    if(ri<rows.length-1)result+='\n';
+  }
+  return result;
+}
+
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+document.getElementById('recognize').onclick=async()=>{
+  const box=document.getElementById('recognized');
+  box.textContent='解析中…';
+  try{
+    const embedded=await readEmbeddedText(loadedFile);
+    if(embedded!==null){box.innerHTML='<span class="ok">'+escapeHtml(embedded)+'</span>';return}
+    const recoveredQR=await readRecoveryQR(loadedFile);
+    if(recoveredQR!==null){box.innerHTML='<span class="ok">'+escapeHtml(recoveredQR)+'</span>';return}
+    if(!loadedImage){box.innerHTML='<span class="bad">画像を選択してください。</span>';return}
+    box.textContent=await fallbackRecognize();
+  }catch(e){console.error(e);box.innerHTML='<span class="bad">変換中にエラーが発生しました：'+escapeHtml(e.message||e)+'</span>'}
+};
+
+document.getElementById('copy2').onclick=()=>navigator.clipboard.writeText(document.getElementById('recognized').textContent);
+
 // v91: when a QR is scanned by the phone camera, the QR opens this GitHub Pages URL.
 // The PNG is then embedded in this same page instead of navigating to Google Drive.
 (function initEmbeddedShare(){
