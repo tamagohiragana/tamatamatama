@@ -1055,7 +1055,7 @@ async function postPngToServer(pngData){
     function onMessage(ev){
       const obj=ev.data;
       if(!obj||obj.type!=='TAMA_PNG_UPLOAD_RESULT'||obj.request!==request)return;
-      if(obj.ok&&obj.id&&obj.shareUrl)finish(true,{id:String(obj.id).toUpperCase(),shareUrl:String(obj.shareUrl)});
+      if(obj.ok&&obj.id&&(obj.fileId||obj.shareUrl))finish(true,{id:String(obj.id).toUpperCase(),fileId:String(obj.fileId||''),shareUrl:String(obj.shareUrl||'')});
       else finish(false,new Error(obj.error||'PNGの保存に失敗しました'));
     }
     window.addEventListener('message',onMessage);
@@ -1069,11 +1069,17 @@ async function postPngToServer(pngData){
   });
 }
 function getShareQrPayload(target){
-  if(target&&typeof target==='object'&&target.shareUrl)return target.shareUrl;
+  // New QR: always points back to the public GitHub Pages app.
+  // The Drive file ID is carried as a parameter so the app can embed the PNG directly.
+  if(target&&typeof target==='object'){
+    if(target.fileId&&target.id)return APP_URL+'?sharepng='+encodeURIComponent(String(target.id).toUpperCase())+'&fid='+encodeURIComponent(String(target.fileId));
+    if(target.shareUrl)return target.shareUrl;
+  }
   const s=String(target||'').trim();
   if(/^https?:\/\//i.test(s))return s;
-  return SHARE_SERVER_URL+'?image=1&id='+encodeURIComponent(s.toUpperCase());
+  return APP_URL+'?sharepng='+encodeURIComponent(s.toUpperCase());
 }
+
 async function createShareCard(){
   const status=document.getElementById('shareCodeStatus'),preview=document.getElementById('shareQrPreview'),button=document.getElementById('makeShareCode');
   try{
@@ -1081,7 +1087,7 @@ async function createShareCard(){
     const pngData=await makePngData();
     const byteLength=Math.floor((dataURLToB64(pngData).length*3)/4);
     status.textContent=`完成PNG ${byteLength.toLocaleString()} byte をサーバーへ保存しています…`;
-    const saved=await postPngToServer(pngData);lastShareId=saved.id;
+    const saved=await postPngToServer(pngData);lastShareId=saved.id;lastSharedPngUrl=saved.fileId?'https://lh3.googleusercontent.com/d/'+encodeURIComponent(saved.fileId):(saved.shareUrl||'');
     const payload=getShareQrPayload(saved),qr=drawShareQR(payload,280);
     const pad=20,qrPx=280,bottom=108,cardW=qrPx+pad*2,cardH=pad+qrPx+bottom;
     const out=document.createElement('canvas');out.width=cardW;out.height=cardH;const ctx=out.getContext('2d');
@@ -1119,7 +1125,11 @@ function extractShareTarget(v){
       const base=new URL(APP_URL),server=new URL(SHARE_SERVER_URL);
       if(u.origin===base.origin&&u.pathname===base.pathname){
         const id=u.searchParams.get('sharepng');
-        if(id&&/^[A-Z0-9]{6,32}$/i.test(id))return {type:'server',id:id.toUpperCase(),url:getShareQrPayload(id)};
+        const fid=u.searchParams.get('fid');
+        if(id&&/^[A-Z0-9]{6,32}$/i.test(id)){
+          if(fid&&/^[A-Za-z0-9_-]{10,200}$/.test(fid)) return {type:'image',id:id.toUpperCase(),fileId:fid,url:'https://lh3.googleusercontent.com/d/'+encodeURIComponent(fid)};
+          return {type:'server',id:id.toUpperCase(),url:getShareQrPayload(id)};
+        }
       }
       if(u.origin===server.origin&&u.pathname===server.pathname){
         const id=u.searchParams.get('id'),image=u.searchParams.get('image');
@@ -1159,7 +1169,24 @@ async function readShareIdFromQRFile(file){
 async function loadShareId(target){
   const t=(target&&typeof target==='object')?target:extractShareTarget(String(target||''));
   if(!t||!t.url)throw new Error('共有QRのURLが正しくありません');
-  const status=document.getElementById('shareCodeStatus');if(status)status.textContent='共有PNGを開いています…';
+  const status=document.getElementById('shareCodeStatus');
+  const box=document.getElementById('sharedPngResult');
+  if(t.type==='image'){
+    if(status)status.textContent='共有PNGを表示しています…';
+    if(box){
+      box.innerHTML='';
+      const img=document.createElement('img');
+      img.alt='共有されたたまごっち文字PNG';
+      img.style.cssText='display:block;max-width:100%;height:auto;margin:12px auto;border:1px solid #eee;border-radius:10px;background:#fff;';
+      img.onload=()=>{if(status)status.textContent='共有PNGを表示しました。ID：'+(t.id||'')};
+      img.onerror=()=>{if(status)status.textContent='共有PNGを表示できませんでした。';};
+      img.src=t.url;
+      box.appendChild(img);
+    }
+    return;
+  }
+  // Legacy server URLs: keep the old behavior for backward compatibility.
+  if(status)status.textContent='共有PNGを開いています…';
   location.href=t.url;
 }
 async function loadShareQRFile(file){
@@ -1195,5 +1222,18 @@ const saveBtn=document.getElementById('saveShareQR');if(saveBtn)saveBtn.onclick=
 (function initShareDate(){const d=document.getElementById('shareDate');if(d&&!d.value)d.value=new Date().toISOString().slice(0,10)})();
 render();
 renderComposition();
+// v91: when a QR is scanned by the phone camera, the QR opens this GitHub Pages URL.
+// The PNG is then embedded in this same page instead of navigating to Google Drive.
+(function initEmbeddedShare(){
+  try{
+    const u=new URL(location.href);
+    const id=u.searchParams.get('sharepng');
+    const fid=u.searchParams.get('fid');
+    if(id&&fid&&/^[A-Z0-9]{6,32}$/i.test(id)&&/^[A-Za-z0-9_-]{10,200}$/.test(fid)){
+      const t={type:'image',id:id.toUpperCase(),fileId:fid,url:'https://lh3.googleusercontent.com/d/'+encodeURIComponent(fid)};
+      setTimeout(()=>loadShareId(t),0);
+    }
+  }catch(e){console.error(e)}
+})();
 </script>
 </body></html>
