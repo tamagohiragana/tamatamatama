@@ -175,7 +175,7 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
   <div class="shareMetaRow"><label style="flex:1">パスワード <input id="sharePassword" type="password" maxlength="40" placeholder="現在の共有方式では使用しません" autocomplete="new-password" disabled></label></div>
   <div class="shareCodeRow"><button id="makeShareCode" type="button" class="share">共有QRを作製</button><button id="saveShareQR" type="button" class="primary" disabled>QR画像を保存</button></div>
   <div id="shareLoadingVisual" class="shareLoadingVisual" aria-live="polite">
-    <div class="shareLoadingSpinner" aria-hidden="true"></div>
+    <img id="shareLoadingImage" src="tsusin1.png" alt="共有QRを作製しています">
     <div class="shareLoadingText">PNGを保存して共有QRを発行しています…</div>
   </div>
   <canvas id="shareQrPreview" class="shareQrPreview"></canvas>
@@ -1089,13 +1089,17 @@ function getShareQrPayload(target){
 
 async function createShareCard(){
   const status=document.getElementById('shareCodeStatus'),preview=document.getElementById('shareQrPreview'),button=document.getElementById('makeShareCode');
-  const loading=document.getElementById('shareLoadingVisual');
+  const loading=document.getElementById('shareLoadingVisual'),loadingImg=document.getElementById('shareLoadingImage');
+  let loadingTimer=null,loadingIndex=0;
+  const loadingImages=['tsusin1.png','tsusin2.png','tsusin3.png','tsusin4.png'];
   function startLoadingVisual(){
-    if(!loading)return;
-    loading.style.display='block';
+    if(!loading||!loadingImg)return;
+    loadingIndex=0; loadingImg.src=loadingImages[0]; loading.style.display='block';
     if(preview)preview.style.display='none';
+    loadingTimer=setInterval(function(){loadingIndex=(loadingIndex+1)%loadingImages.length;loadingImg.src=loadingImages[loadingIndex];},1000);
   }
   function stopLoadingVisual(){
+    if(loadingTimer){clearInterval(loadingTimer);loadingTimer=null;}
     if(loading)loading.style.display='none';
     if(preview)preview.style.display='block';
   }
