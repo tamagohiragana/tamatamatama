@@ -1190,6 +1190,28 @@ async function readShareIdFromQRFile(file){
   }
   throw new Error('共有QRコードを読み取れませんでした');
 }
+async function requestSharedPngMetadata(shareId){
+  const id=String(shareId||'').toUpperCase().trim();
+  if(!/^[A-Z0-9]{10}$/.test(id)) return null;
+  const request='meta_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+  const iframe=document.createElement('iframe');
+  iframe.style.display='none';
+  iframe.src=SHARE_SERVER_URL+'?mode=meta&id='+encodeURIComponent(id)+'&request='+encodeURIComponent(request);
+  document.body.appendChild(iframe);
+  return new Promise(resolve=>{
+    let done=false;
+    const timer=setTimeout(()=>finish(null),12000);
+    function cleanup(){clearTimeout(timer);window.removeEventListener('message',onMessage);setTimeout(()=>{try{iframe.remove()}catch(e){}},100)}
+    function finish(value){if(done)return;done=true;cleanup();resolve(value)}
+    function onMessage(ev){
+      const o=ev.data;
+      if(!o||o.type!=='TAMA_SHARE_META_RESULT'||o.request!==request)return;
+      if(o.ok&&typeof o.text==='string')finish(o.text);else finish(null);
+    }
+    window.addEventListener('message',onMessage);
+  });
+}
+
 async function loadShareId(target){
   const t=(target&&typeof target==='object')?target:extractShareTarget(String(target||''));
   if(!t||!t.url)throw new Error('共有QRのURLが正しくありません');
@@ -1202,7 +1224,17 @@ async function loadShareId(target){
       const img=document.createElement('img');
       img.alt='共有されたたまごっち文字PNG';
       img.style.cssText='display:block;max-width:100%;height:auto;margin:12px auto;border:1px solid #eee;border-radius:10px;background:#fff;';
-      img.onload=()=>{if(status)status.textContent='共有PNGを表示しました。ID：'+(t.id||'')};
+      img.onload=async()=>{
+        if(status)status.textContent='共有PNGを表示しました。ID：'+(t.id||'');
+        // 同時にDrive上の元PNGからメタデータを取得し、④の認識結果へ自動表示。
+        if(t.id){
+          const metaText=await requestSharedPngMetadata(t.id);
+          if(metaText!==null){
+            const recognized=document.getElementById('recognized');
+            if(recognized)recognized.innerHTML='<span class="ok">'+escapeHtml(metaText)+'</span>';
+          }
+        }
+      };
       img.onerror=()=>{if(status)status.textContent='共有PNGを表示できませんでした。';};
       img.src=t.url;
       box.appendChild(img);
