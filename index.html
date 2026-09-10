@@ -114,12 +114,16 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 .shareCodeRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
 .shareCodeInput{width:100%;min-height:100px;box-sizing:border-box;resize:vertical;font-family:monospace;font-size:12px;padding:10px;border:1px solid #ccc;border-radius:8px;background:#fff}
 @media(max-width:600px){.shareCodeRow{grid-template-columns:1fr}}
+
+/* Empty preview areas: keep them compact until actual content is loaded. */
+#shareQrPreview:not([width]){height:80px}
+#previewCanvas:not([width]){height:100px}
 </style>
 
 </head>
 <body><main>
 <h1>🥚 たまごっち文字画像作成ツール</h1>
-<p class="lead">ひらがなを入力して、たまごっち文字の「正方形・便箋風PNG」を作れます。改行・段落を保ったまま、QRコードから元の文章も復元できます。</p><p class="hint">追加文字：数字 0～9・英字 A～Z / a～z はファイル名をそのまま使用。記号はUnicodeコードポイント名のPNGを使用します。</p>
+<p class="lead">ひらがなを入力して、たまごっち文字の「正方形・便箋風PNG」を作れます。改行・段落を保ったまま、QRコードから元の文章も復元できます。</p>
 <section class="panel">
 <div class="topCreateGrid">
   <div class="backgroundPanel controlBox">
@@ -172,7 +176,6 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
   <div class="badge">共有・サーバー保存QR</div>
   <div class="small">完成したPNG画像そのものをサーバーに保存し、QRコードからそのPNGを呼び出します。編集状態ではなく、出力されたPNGをそのまま復元します。</div>
   <div class="shareMetaRow"><label>日付 <input id="shareDate" type="date"></label><label>ひとこと <input id="shareComment" type="text" maxlength="60" placeholder="例：今日つくった！"></label></div>
-  <div class="shareMetaRow"><label style="flex:1">パスワード <input id="sharePassword" type="password" maxlength="40" placeholder="現在の共有方式では使用しません" autocomplete="new-password" disabled></label></div>
   <div class="shareCodeRow"><button id="makeShareCode" type="button" class="share">共有QRを作製</button><button id="saveShareQR" type="button" class="primary" disabled>QR画像を保存</button></div>
   <div id="shareLoadingVisual" class="shareLoadingVisual" aria-live="polite">
     <img id="shareLoadingImage" src="tsusin1.png" alt="共有QRを作製しています">
