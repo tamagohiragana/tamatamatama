@@ -118,6 +118,40 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 /* Empty preview areas: keep them compact until actual content is loaded. */
 #shareQrPreview:not([width]){height:80px}
 #previewCanvas:not([width]){height:100px}
+
+/* v98: 背景・スタンプのフォルダ分類ブラウザ */
+.assetBrowser{margin-top:8px}
+.assetBrowserBar{display:flex;align-items:center;gap:8px;margin:4px 0 8px;min-height:34px}
+.assetBrowserTitle{font-size:13px;font-weight:800;color:#43546d;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.assetBackBtn{display:none;flex:0 0 auto;padding:7px 12px;border-radius:10px;background:#182b55;color:#fff;border:0;font-size:12px;font-weight:800;cursor:pointer}
+.assetBackBtn.show{display:block}
+.assetScroller{
+  display:flex;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;
+  width:100%;gap:10px;padding:4px 2px 9px;box-sizing:border-box;
+  -webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;
+}
+.assetCard{
+  flex:0 0 118px;width:118px;min-width:118px;height:118px;
+  box-sizing:border-box;border:2px solid transparent;border-radius:14px;
+  background:#fff;padding:5px;cursor:pointer;scroll-snap-align:start;
+  overflow:hidden;
+}
+.assetCard.active{border-color:#1685e5}
+.assetCard img{display:block;width:100%;height:82px;object-fit:contain;background:#fff;border-radius:9px}
+.assetCard .assetLabel{display:block;font-size:10px;font-weight:800;color:#43546d;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.folderCard{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:5px;background:linear-gradient(180deg,#fff,#f5f9ff);
+  border-color:#dbe7f4;
+}
+.folderIcon{font-size:47px;line-height:1}
+.folderCard .assetLabel{font-size:11px;color:#182b55}
+.assetEmpty{padding:14px 8px;color:#68758a;font-size:12px;font-weight:700}
+@media(max-width:800px){
+  .assetCard{flex-basis:105px;width:105px;min-width:105px;height:112px}
+  .assetCard img{height:68px}
+  .folderIcon{font-size:42px}
+}
 </style>
 
 </head>
@@ -128,7 +162,11 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 <div class="topCreateGrid">
   <div class="backgroundPanel controlBox">
     <div class="badge">① 背景を選ぶ</div>
-    <div id="bgFolderStatus" class="folderLoadStatus"></div><div id="bgGrid" class="bgGrid"></div>
+    <div id="bgFolderStatus" class="folderLoadStatus"></div>
+<div id="bgAssetBrowser" class="assetBrowser">
+  <div class="assetBrowserBar"><button id="bgBackBtn" class="assetBackBtn" type="button">← 戻る</button><div id="bgBrowserTitle" class="assetBrowserTitle">背景</div></div>
+  <div id="bgGrid" class="bgGrid assetScroller"></div>
+</div>
     <label class="small" style="display:block;margin-top:10px">オリジナル背景PNGを追加： <input id="bgFile" type="file" accept="image/png,image/jpeg,image/webp"></label>
   </div>
 
@@ -165,7 +203,11 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
   <button id="referenceHide" class="referenceHide" type="button">隠す</button>
 </div>
 <button id="stickerSizeUp" class="stickerSizeBtn" type="button">↑</button>
-<div id="stickerFolderStatus" class="folderLoadStatus"></div><div id="standardStickerGrid" class="standardStickerGrid"></div>
+<div id="stickerFolderStatus" class="folderLoadStatus"></div>
+<div id="stickerAssetBrowser" class="assetBrowser">
+  <div class="assetBrowserBar"><button id="stickerBackBtn" class="assetBackBtn" type="button">← 戻る</button><div id="stickerBrowserTitle" class="assetBrowserTitle">スタンプ</div></div>
+  <div id="standardStickerGrid" class="standardStickerGrid assetScroller"></div>
+</div>
 <button id="stickerSizeDown" class="stickerSizeBtn" type="button">↓</button>
 <div class="stickerToolRow"><button id="stickerFlipY" type="button">↕ 上下反転</button><button id="stickerFlipX" type="button">↔ 左右反転</button><button id="stickerOutline" type="button">白枠：OFF</button></div>
 <div class="stickerRow"><label for="stickerFile">オリジナルPNG</label><input id="stickerFile" type="file" accept="image/png,image/jpeg,image/webp"></div>
@@ -309,65 +351,137 @@ function addBGButton(path,label,active=false){
   b.append(im,sp);b.onclick=()=>{selectedBG=path;customBG=null;document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderComposition()};
   bgGrid.appendChild(b); bgImages[path]=im;
 }
-async function initBG(){
-  bgGrid.innerHTML='';
-  // まず既存の標準背景を即表示（API失敗時も従来通り使える）
-  const assetBust='?v='+Date.now();
-  for(const [id,label] of BG_LIST) addBGButton('backgrounds/'+id+'.png'+assetBust,label,id==='blue');
-  try{
-    const files=await fetchPngFiles('backgrounds');
-    const existing=new Set(BG_LIST.map(x=>x[0]+'.png'));
-    for(const f of files){ if(existing.has(f.name)) continue; addBGButton(f.download_url || ('backgrounds/'+f.name),fileLabel(f.name)); }
-    setFolderStatus('bgFolderStatus',`${files.length}個のPNGを自動取得`);
-  }catch(e){ setFolderStatus('bgFolderStatus','追加背景の自動取得に失敗しました（標準背景のみ表示）'); }
+
+/* v98: GitHub上の背景・スタンプをフォルダ単位で自動表示 */
+const ASSET_API_ROOT='https://api.github.com/repos/tamagohiragana/tamatamatama/contents/';
+const assetDirCache=new Map();
+
+async function fetchAssetDirectory(path){
+  const clean=String(path||'').replace(/^\/+|\/+$/g,'');
+  if(assetDirCache.has(clean)) return assetDirCache.get(clean);
+  const url=ASSET_API_ROOT+clean+'?ref=main&_='+Date.now();
+  const r=await fetch(url,{cache:'no-store',headers:{'Accept':'application/vnd.github+json'}});
+  if(!r.ok) throw new Error('GitHub API '+r.status);
+  const data=await r.json();
+  const entries=Array.isArray(data)?data:[];
+  assetDirCache.set(clean,entries);
+  return entries;
 }
+function assetIsImage(e){
+  return e && e.type==='file' && /\.(png|jpe?g)$/i.test(String(e.name||''));
+}
+function assetUrl(e){
+  const u=e && (e.download_url || e.html_url);
+  return u ? u + (u.includes('?')?'&':'?')+'v='+Date.now() : '';
+}
+function makeAssetCard(entry,kind){
+  const b=document.createElement('button');
+  b.type='button'; b.className='assetCard';
+  const im=new Image();
+  im.src=assetUrl(entry); im.alt=entry.name; im.loading='lazy';
+  const sp=document.createElement('span'); sp.className='assetLabel'; sp.textContent=fileLabel(entry.name);
+  b.append(im,sp);
+  if(kind==='bg'){
+    b.onclick=()=>{
+      selectedBG=assetUrl(entry); customBG=null;
+      document.querySelectorAll('#bgGrid .assetCard').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); renderComposition();
+    };
+  }else{
+    b.onclick=()=>{
+      const x=new Image();
+      x.onload=()=>addSticker(x,fileLabel(entry.name));
+      x.src=assetUrl(entry);
+    };
+  }
+  return b;
+}
+function makeFolderCard(entry,kind,openFolder){
+  const b=document.createElement('button');
+  b.type='button'; b.className='assetCard folderCard';
+  const icon=document.createElement('span'); icon.className='folderIcon'; icon.textContent='📁';
+  const sp=document.createElement('span'); sp.className='assetLabel'; sp.textContent=entry.name;
+  b.append(icon,sp);
+  b.onclick=()=>openFolder(entry.path,entry.name);
+  return b;
+}
+function setupAssetBrowser(kind){
+  const grid=document.getElementById(kind==='bg'?'bgGrid':'standardStickerGrid');
+  const back=document.getElementById(kind==='bg'?'bgBackBtn':'stickerBackBtn');
+  const title=document.getElementById(kind==='bg'?'bgBrowserTitle':'stickerBrowserTitle');
+  let rootPath=kind==='bg'?'backgrounds':'stickers';
+  let currentPath=rootPath;
+  const rootTitle=kind==='bg'?'背景':'スタンプ';
+
+  async function show(path,label,isRoot=false){
+    currentPath=path;
+    grid.innerHTML='';
+    title.textContent=label || rootTitle;
+    back.classList.toggle('show',!isRoot);
+    try{
+      const entries=await fetchAssetDirectory(path);
+      const folders=entries.filter(e=>e.type==='dir').sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true,sensitivity:'base'}));
+      const files=entries.filter(assetIsImage).sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true,sensitivity:'base'}));
+
+      for(const folder of folders) grid.appendChild(makeFolderCard(folder,kind,show));
+      for(const file of files){
+        const card=makeAssetCard(file,kind);
+        // Preserve the existing visual labels for the original root sticker set.
+        if(kind==='sticker' && path==='stickers' && STANDARD_STICKER_LABELS[file.name]){
+          const label=card.querySelector('.assetLabel');
+          if(label) label.textContent=STANDARD_STICKER_LABELS[file.name];
+        }
+        grid.appendChild(card);
+      }
+      if(!folders.length && !files.length){
+        const empty=document.createElement('div'); empty.className='assetEmpty';
+        empty.textContent='このフォルダにはPNG/JPEG画像がありません。';
+        grid.appendChild(empty);
+      }
+      setFolderStatus(kind==='bg'?'bgFolderStatus':'stickerFolderStatus',
+        `${folders.length ? 'フォルダ '+folders.length+'個・' : ''}画像 ${files.length}個`);
+    }catch(e){
+      const empty=document.createElement('div'); empty.className='assetEmpty';
+      empty.textContent='フォルダの読み込みに失敗しました。';
+      grid.appendChild(empty);
+      setFolderStatus(kind==='bg'?'bgFolderStatus':'stickerFolderStatus','GitHubフォルダの取得に失敗しました');
+      console.error(e);
+    }
+  }
+  back.onclick=()=>show(rootPath,rootTitle,true);
+  return ()=>show(rootPath,rootTitle,true);
+}
+
+const showBGAssetRoot=setupAssetBrowser('bg');
+const showStickerAssetRoot=setupAssetBrowser('sticker');
+
+async function initBG(){
+  // v98: ルート直下の画像＋サブフォルダを自動取得。
+  // 既存の標準背景もそのまま残す。
+  await showBGAssetRoot();
+  const existing=new Set(BG_LIST.map(x=>x[0]+'.png'));
+  // ルートAPIで既存標準背景にactive状態を付ける。
+  document.querySelectorAll('#bgGrid .assetCard').forEach(b=>{
+    const img=b.querySelector('img');
+    if(img && existing.has(decodeURIComponent((img.src.split('/').pop()||'').split('?')[0]))) {
+      // 選択状態は初期背景blueに合わせる
+    }
+  });
+  // 初期値は従来どおりblue
+  const blueBtn=[...document.querySelectorAll('#bgGrid .assetCard')].find(b=>b.querySelector('.assetLabel')?.textContent==='ブルー');
+  if(blueBtn){blueBtn.classList.add('active');selectedBG='backgrounds/blue.png?v='+Date.now();}
+}
+
 initBG();
 const STANDARD_STICKERS=[
   ['stickers/zutto_tomo.png','ずっ友'],['stickers/choberiba.png','チョベリバ'],['stickers/aiainigasa.png','相合傘'],['stickers/saikoo.png','サイコー'],
   ['stickers/love.png','LOVE'],['stickers/nakayoshi.png','なかよし'],['stickers/uchira_saikyo.png','うちら最強'],['stickers/issho_nakako.png','一生仲仔♥']
 ];
 async function initStandardStickers(){
-  const grid=document.getElementById('standardStickerGrid'); grid.innerHTML='';
-  // 既存8種を即表示
-  const stickerBust='?v='+Date.now();
-  for(const [src,label] of STANDARD_STICKERS){
-    const freshSrc=src+stickerBust;
-    const b=document.createElement('button'); b.type='button'; b.className='standardStickerBtn';
-    const im=new Image(); im.src=freshSrc; im.alt=label;
-    const sp=document.createElement('span'); sp.textContent=label;
-    b.append(im,sp); b.onclick=()=>{ const x=new Image(); x.onload=()=>addSticker(x,label); x.src=freshSrc; };
-    grid.appendChild(b);
-  }
-  try{
-    const files=await fetchPngFiles('stickers');
-    const existing=new Set(STANDARD_STICKERS.map(x=>x[0].split('/').pop()));
-    const customFiles=files.filter(f=>!existing.has(f.name));
-    const hasJapanese=s=>/[ぁ-ゖァ-ヺ一-龯々〆ヵヶ]/.test(s);
-    const hasLatin=s=>/[A-Za-z]/.test(s);
-    const hasDigit=s=>/[0-9]/.test(s);
-    const sortCustom=(a,b)=>{
-      const an=a.name.replace(/\.png$/i,'');
-      const bn=b.name.replace(/\.png$/i,'');
-      // 並び順：日本語 → 数字/日本語混在 → 英字 → 記号
-      const rank=s=>hasJapanese(s)?0:(hasDigit(s)&&!hasLatin(s)?1:(hasLatin(s)?2:3));
-      const ra=rank(an), rb=rank(bn);
-      if(ra!==rb) return ra-rb;
-      return an.localeCompare(bn,'ja',{numeric:true,sensitivity:'base'});
-    };
-    customFiles.sort(sortCustom);
-    for(const f of customFiles){
-      const src=f.download_url || ('stickers/'+encodeURIComponent(f.name));
-      const label=STANDARD_STICKER_LABELS[f.name] || fileLabel(f.name);
-      const b=document.createElement('button'); b.type='button'; b.className='standardStickerBtn';
-      const im=new Image(); im.src=src; im.alt=label; im.loading='lazy';
-      const sp=document.createElement('span'); sp.textContent=label;
-      b.append(im,sp);
-      b.onclick=()=>{ const x=new Image(); x.onload=()=>addSticker(x,label); x.src=src; };
-      grid.appendChild(b);
-    }
-    setFolderStatus('stickerFolderStatus',`${files.length}個のPNGを自動取得`);
-  }catch(e){ setFolderStatus('stickerFolderStatus','追加スタンプの自動取得に失敗しました（標準スタンプのみ表示）'); }
+  // v98: ルート直下＋サブフォルダを自動取得。PNG/JPEG両対応。
+  await showStickerAssetRoot();
 }
+
 initStandardStickers();
 bgFile.onchange=e=>{const f=e.target.files[0];if(!f)return;const u=URL.createObjectURL(f);const im=new Image();im.onload=()=>{customBG=im;selectedBG=null;document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));renderComposition()};im.src=u;};
 
