@@ -386,6 +386,7 @@ function makeAssetCard(entry,kind){
   const b=document.createElement('button');
   b.type='button'; b.className='assetCard';
   const im=new Image();
+  im.crossOrigin='anonymous';
   im.src=assetUrl(entry); im.alt=entry.name; im.loading='lazy';
   im.addEventListener('load',()=>markPixelArt(im,im),{once:true});
   const sp=document.createElement('span'); sp.className='assetLabel'; sp.textContent=fileLabel(entry.name);
@@ -399,6 +400,7 @@ function makeAssetCard(entry,kind){
   }else{
     b.onclick=()=>{
       const x=new Image();
+      x.crossOrigin='anonymous';
       x.onload=()=>addSticker(x,fileLabel(entry.name));
       x.src=assetUrl(entry);
     };
@@ -525,7 +527,7 @@ async function makeLayout(){
 }
 async function drawBackground(){
   if(!document.getElementById('useBG').checked){ctx.fillStyle='#fff';ctx.fillRect(0,0,1200,1200);return;}
-  const im=customBG||await new Promise(resolve=>{const x=new Image();x.onload=()=>resolve(x);x.onerror=()=>resolve(null);x.src=selectedBG;});
+  const im=customBG||await new Promise(resolve=>{const x=new Image();x.crossOrigin='anonymous';x.onload=()=>resolve(x);x.onerror=()=>resolve(null);x.src=selectedBG;});
   if(im){ctx.drawImage(im,0,0,1200,1200);} else {ctx.fillStyle='#fffaf0';ctx.fillRect(0,0,1200,1200);}
 }
 function drawGlyph(ctx,im,x,y,fs,color,outline){
@@ -1149,9 +1151,14 @@ async function makePngData(){
   return addTamagotchiMetadata(baseData,input.value,Number(size.value));
 }
 document.getElementById('png').onclick=async()=>{
-  const data=await makePngData();
-  lastPngData=data;
-  downloadData(data,'tamagotchi_letter.png');
+  try{
+    const data=await makePngData();
+    lastPngData=data;
+    downloadData(data,'tamagotchi_letter.png');
+  }catch(e){
+    console.error('PNG保存エラー',e);
+    alert('PNGを保存できませんでした。画像の読み込み状態を確認してください。');
+  }
 };
 async function sharePng(target){
   try{
@@ -1179,7 +1186,7 @@ document.getElementById('share').onclick=()=>sharePng('共有');
 // Apps Script returns the actual Drive sharing URL to this page via postMessage.
 // The QR then contains that verified public sharing URL.
 const SHARE_SERVER_URL='https://script.google.com/macros/s/AKfycbzmn5ZkZ6VER-pJJNqfPb4hj2FQoROBdK3rM24yZMBsxTCOtiQceWENjsY9UpsmkDQIrw/exec';
-const SHARE_CLIENT_VERSION='v100';
+const SHARE_CLIENT_VERSION='v101';
 let lastShareQrBlob=null,lastShareQrObjectUrl=null,lastShareId='',lastSharedPngUrl='';
 function createClientShareId(){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
