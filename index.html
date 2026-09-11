@@ -432,6 +432,8 @@ function rememberTextSelection(){
   if(end>start) lastTextSelection={start,end};
 }
 ['select','keyup','mouseup','touchend','input'].forEach(ev=>input.addEventListener(ev,rememberTextSelection));
+// selectionchange は input 要素ではなく document 側で発火するブラウザがあるため、両方で取得する。
+document.addEventListener('selectionchange',rememberTextSelection);
 input.addEventListener('selectionchange',rememberTextSelection);
 input.addEventListener('focus',rememberTextSelection);
 input.addEventListener('blur',rememberTextSelection);
@@ -450,6 +452,7 @@ function initTextColors(){
   for(const [color,label] of TEXT_COLORS){
     const b=document.createElement('button');b.type='button';b.className='colorBtn'+(color===textColor?' active':'');
     b.dataset.color=color;b.title=label;b.setAttribute('aria-label',label);b.style.background=color;
+    // v109: 部分着色では基本色を変更せず、選択範囲だけを着色。
     // v108: スマホでは色ボタンへフォーカスが移る前に選択範囲を確定し、
     // pointerdownの時点で着色処理まで完了する。click時にselectionStartが0/0へ
     // 戻って「全体の基本色変更」になってしまう問題を避ける。
@@ -463,10 +466,16 @@ function initTextColors(){
       }else{
         lastTextSelection={start,end};
       }
-      textColor=color;
       document.querySelectorAll('.colorBtn').forEach(x=>x.classList.remove('active'));
       b.classList.add('active');
-      if(end>start) addTextColorRange(start,end,color);
+      if(end>start){
+        // 部分選択時は「基本色(textColor)」を変更しない。
+        // ここを変更すると未選択部分まで新しい色になるのが、これまでの不具合の原因。
+        addTextColorRange(start,end,color);
+      }else{
+        // 選択なしの場合だけ、全体の基本色を変更する。
+        textColor=color;
+      }
       renderComposition();
     };
     b.addEventListener('pointerdown',(ev)=>{
