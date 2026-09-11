@@ -152,6 +152,14 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
   .assetCard img{height:68px}
   .folderIcon{font-size:42px}
 }
+
+/* v100: 自動判定されたドット絵だけブラウザ表示をニアレストにする */
+.stickerItem img.pixelArtImage,
+.assetCard img.pixelArtImage{
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+  image-rendering:-moz-crisp-edges;
+}
 </style>
 
 </head>
@@ -378,7 +386,9 @@ function makeAssetCard(entry,kind){
   const b=document.createElement('button');
   b.type='button'; b.className='assetCard';
   const im=new Image();
+  im.crossOrigin='anonymous';
   im.src=assetUrl(entry); im.alt=entry.name; im.loading='lazy';
+  im.addEventListener('load',()=>markPixelArt(im,im),{once:true});
   const sp=document.createElement('span'); sp.className='assetLabel'; sp.textContent=fileLabel(entry.name);
   b.append(im,sp);
   if(kind==='bg'){
@@ -390,6 +400,7 @@ function makeAssetCard(entry,kind){
   }else{
     b.onclick=()=>{
       const x=new Image();
+      x.crossOrigin='anonymous';
       x.onload=()=>addSticker(x,fileLabel(entry.name));
       x.src=assetUrl(entry);
     };
@@ -516,7 +527,7 @@ async function makeLayout(){
 }
 async function drawBackground(){
   if(!document.getElementById('useBG').checked){ctx.fillStyle='#fff';ctx.fillRect(0,0,1200,1200);return;}
-  const im=customBG||await new Promise(resolve=>{const x=new Image();x.onload=()=>resolve(x);x.onerror=()=>resolve(null);x.src=selectedBG;});
+  const im=customBG||await new Promise(resolve=>{const x=new Image();x.crossOrigin='anonymous';x.onload=()=>resolve(x);x.onerror=()=>resolve(null);x.src=selectedBG;});
   if(im){ctx.drawImage(im,0,0,1200,1200);} else {ctx.fillStyle='#fffaf0';ctx.fillRect(0,0,1200,1200);}
 }
 function drawGlyph(ctx,im,x,y,fs,color,outline){
@@ -710,6 +721,7 @@ function drawStickerToCanvas(target,st){
   target.translate(st.x,st.y);
   target.rotate(st.rot);
   target.scale(st.flipX?-1:1,st.flipY?-1:1);
+  target.imageSmoothingEnabled=false;
   if(st.whiteOutline) drawStickerOutline(target,st.img,w,h,Math.max(2,Math.min(12,st.outlinePx||5)));
   target.drawImage(st.img,-w/2,-h/2,w,h);
   target.restore();
@@ -769,9 +781,45 @@ function removeSticker(st){
   stickerStatus.textContent=stickers.length?'スタンプをタップすると選択できます。':'';
   renderComposition();
 }
+
+/* v100: ドット絵自動判定
+   非同期処理を一切挟まないため、PNG保存・共有処理を止めない。
+   小サイズを強い候補にし、可能な場合だけ色数も確認する。
+*/
+function detectPixelArt(img){
+  if(!img || !img.naturalWidth || !img.naturalHeight) return false;
+  const maxSide=Math.max(img.naturalWidth,img.naturalHeight);
+  if(maxSide<=128) return true;
+  if(maxSide>256) return false;
+  try{
+    const c=document.createElement('canvas');
+    const s=Math.min(1,128/maxSide);
+    c.width=Math.max(1,Math.round(img.naturalWidth*s));
+    c.height=Math.max(1,Math.round(img.naturalHeight*s));
+    const x=c.getContext('2d',{willReadFrequently:true});
+    x.imageSmoothingEnabled=false;
+    x.drawImage(img,0,0,c.width,c.height);
+    const d=x.getImageData(0,0,c.width,c.height).data;
+    const colors=new Set();
+    for(let i=0;i<d.length;i+=4){
+      if(d[i+3]<16) continue;
+      colors.add(((d[i]>>4)<<8)|((d[i+1]>>4)<<4)|(d[i+2]>>4));
+      if(colors.size>96) return false;
+    }
+    return colors.size<=96;
+  }catch(e){
+    // CORS等で画素を読めない場合は、小サイズ条件だけを採用。
+    return maxSide<=160;
+  }
+}
+function markPixelArt(img,el){
+  if(detectPixelArt(img) && el) el.classList.add('pixelArtImage');
+}
+
 function addSticker(img,name){
   const el=document.createElement('div');el.className='stickerItem selected';
   const im=document.createElement('img');im.src=img.src;im.draggable=false;im.alt=name||'透過PNGスタンプ';
+  if(img.complete) markPixelArt(img,im); else im.addEventListener('load',()=>markPixelArt(img,im),{once:true});
   const rot=document.createElement('button');rot.type='button';rot.className='rotateHandle';rot.textContent='↻';rot.title='回転';rot.setAttribute('aria-label','回転');
   const rm=document.createElement('button');rm.type='button';rm.className='stickerRemove';rm.textContent='×';rm.title='削除';rm.setAttribute('aria-label','削除');
   el.append(im,rot,rm);stickerLayer.appendChild(el);
@@ -1103,9 +1151,14 @@ async function makePngData(){
   return addTamagotchiMetadata(baseData,input.value,Number(size.value));
 }
 document.getElementById('png').onclick=async()=>{
-  const data=await makePngData();
-  lastPngData=data;
-  downloadData(data,'tamagotchi_letter.png');
+  try{
+    const data=await makePngData();
+    lastPngData=data;
+    downloadData(data,'tamagotchi_letter.png');
+  }catch(e){
+    console.error('PNG保存エラー',e);
+    alert('PNGを保存できませんでした。画像の読み込み状態を確認してください。');
+  }
 };
 async function sharePng(target){
   try{
@@ -1133,7 +1186,7 @@ document.getElementById('share').onclick=()=>sharePng('共有');
 // Apps Script returns the actual Drive sharing URL to this page via postMessage.
 // The QR then contains that verified public sharing URL.
 const SHARE_SERVER_URL='https://script.google.com/macros/s/AKfycbzmn5ZkZ6VER-pJJNqfPb4hj2FQoROBdK3rM24yZMBsxTCOtiQceWENjsY9UpsmkDQIrw/exec';
-const SHARE_CLIENT_VERSION='v97';
+const SHARE_CLIENT_VERSION='v101';
 let lastShareQrBlob=null,lastShareQrObjectUrl=null,lastShareId='',lastSharedPngUrl='';
 function createClientShareId(){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
