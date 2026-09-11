@@ -105,6 +105,85 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 .referencePanel img{display:block;width:100%;height:auto;margin:0 auto 12px;border-radius:10px;background:#fff}
 .referencePanel img:last-of-type{margin-bottom:8px}
 .referenceHide{display:block;width:100%;padding:10px 14px;background:#182b55;color:#fff;border:0;border-radius:12px;font-weight:800;cursor:pointer}
+
+/* v102: フォルダを開いたときの3列モーダル */
+.assetFolderModal{
+  position:fixed; inset:0; z-index:100000;
+  display:none; align-items:center; justify-content:center;
+  padding:14px; box-sizing:border-box;
+  background:rgba(10,20,35,.52);
+}
+.assetFolderModal.show{display:flex}
+.assetFolderDialog{
+  width:min(92vw,560px); height:min(82vh,720px);
+  display:flex; flex-direction:column; overflow:hidden;
+  background:rgba(255,255,255,.96);
+  border:1px solid rgba(255,255,255,.9);
+  border-radius:22px;
+  box-shadow:0 20px 60px rgba(0,0,0,.30);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+.assetFolderHeader{
+  flex:0 0 auto; display:flex; align-items:center; gap:8px;
+  padding:13px 14px; border-bottom:1px solid #dce5ee;
+}
+.assetFolderBack,.assetFolderClose{
+  flex:0 0 auto; border:0; cursor:pointer;
+  border-radius:11px; font-weight:800;
+}
+.assetFolderBack{
+  display:none; padding:8px 10px;
+  background:#182b55; color:#fff; font-size:12px;
+}
+.assetFolderBack.show{display:block}
+.assetFolderTitle{
+  flex:1; min-width:0; color:#18345f; font-weight:900;
+  font-size:18px; white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis;
+}
+.assetFolderClose{
+  width:40px; height:40px; background:#eef3f8;
+  color:#18345f; font-size:24px; line-height:1;
+}
+.assetFolderGrid{
+  flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden;
+  padding:12px; display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px; align-content:start;
+  overscroll-behavior:contain;
+}
+.assetFolderGrid .assetCard{
+  width:auto; min-width:0; height:auto; min-height:116px;
+  padding:6px; box-sizing:border-box;
+}
+.assetFolderGrid .assetCard img{
+  width:100%; height:82px; object-fit:contain;
+  display:block; border-radius:8px;
+}
+.assetFolderGrid .assetCard .assetLabel{
+  font-size:11px; margin-top:5px;
+}
+.assetFolderGrid .folderCard{
+  display:flex; flex-direction:column; justify-content:center;
+}
+.assetFolderGrid .folderIcon{font-size:42px}
+.assetFolderEmpty{
+  grid-column:1/-1; padding:45px 12px;
+  text-align:center; color:#718096; font-weight:700;
+}
+@media(max-width:420px){
+  .assetFolderModal{padding:10px}
+  .assetFolderDialog{width:94vw;height:80vh;border-radius:19px}
+  .assetFolderGrid{padding:9px;gap:8px}
+  .assetFolderGrid .assetCard{min-height:103px;padding:5px}
+  .assetFolderGrid .assetCard img{height:70px}
+  .assetFolderGrid .assetLabel{font-size:10px}
+  .assetFolderGrid .folderIcon{font-size:36px}
+}
+
+
+.assetFolderPrev{display:none;flex:0 0 auto;width:40px;height:40px;border:0;border-radius:11px;cursor:pointer;background:#eef3f8;color:#18345f;font-size:23px;line-height:1;font-weight:900}.assetFolderPrev.show{display:block}
 </style>
 <style id="sticker-layer-fix">
 /* v39: QRコードは常に最前面（スタンプより上） */
@@ -163,7 +242,20 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 </style>
 
 </head>
-<body><main>
+<body>
+<!-- v102 フォルダ内3列モーダル -->
+<div id="assetFolderModal" class="assetFolderModal" aria-hidden="true">
+  <div class="assetFolderDialog" role="dialog" aria-modal="true">
+    <div class="assetFolderHeader">
+      <button id="assetFolderBack" class="assetFolderBack" type="button">← 戻る</button>
+      <button id="assetFolderPrev" class="assetFolderPrev" type="button" aria-label="ひとつ前に戻る" title="ひとつ前に戻る">↶</button>
+      <div id="assetFolderTitle" class="assetFolderTitle">フォルダ</div>
+      <button id="assetFolderClose" class="assetFolderClose" type="button" aria-label="閉じる">×</button>
+    </div>
+    <div id="assetFolderGrid" class="assetFolderGrid"></div>
+  </div>
+</div>
+<main>
 <h1>🥚 たまごっち文字画像作成ツール</h1>
 <p class="lead">ひらがなを入力して、たまごっち文字の「正方形・便箋風PNG」を作れます。改行・段落を保ったまま、QRコードから元の文章も復元できます。</p>
 <section class="panel">
@@ -396,6 +488,7 @@ function makeAssetCard(entry,kind){
       selectedBG=assetUrl(entry); customBG=null;
       document.querySelectorAll('#bgGrid .assetCard').forEach(x=>x.classList.remove('active'));
       b.classList.add('active'); renderComposition();
+      closeAssetFolderModal();
     };
   }else{
     b.onclick=()=>{
@@ -413,9 +506,104 @@ function makeFolderCard(entry,kind,openFolder){
   const icon=document.createElement('span'); icon.className='folderIcon'; icon.textContent='📁';
   const sp=document.createElement('span'); sp.className='assetLabel'; sp.textContent=entry.name;
   b.append(icon,sp);
-  b.onclick=()=>openFolder(entry.path,entry.name);
+  b.onclick=()=>openAssetFolderModal(entry.path,entry.name,kind);
   return b;
 }
+
+/* v102: フォルダ内容を中央の3列モーダルで表示 */
+let assetModalKind='sticker';
+let assetModalPath='';
+let assetModalRootPath='';
+let assetModalRootTitle='';
+let assetModalHistory=[];
+
+function closeAssetFolderModal(){
+  const modal=document.getElementById('assetFolderModal');
+  if(!modal)return;
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden','true');
+  document.body.style.overflow='';
+}
+async function renderAssetFolderModal(path,label,kind){
+  const grid=document.getElementById('assetFolderGrid');
+  const title=document.getElementById('assetFolderTitle');
+  const back=document.getElementById('assetFolderBack');
+  const prev=document.getElementById('assetFolderPrev');
+  if(!grid||!title||!back)return;
+  assetModalPath=path;
+  title.textContent=label||'フォルダ';
+  back.classList.toggle('show',path!==assetModalRootPath);
+  if(prev)prev.classList.toggle('show',assetModalHistory.length>0);
+  grid.innerHTML='<div class="assetFolderEmpty">読み込み中…</div>';
+  try{
+    const entries=await fetchAssetDirectory(path);
+    const folders=entries.filter(e=>e.type==='dir')
+      .sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true,sensitivity:'base'}));
+    const files=entries.filter(assetIsImage)
+      .sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true,sensitivity:'base'}));
+
+    grid.innerHTML='';
+    for(const folder of folders){
+      const card=document.createElement('button');
+      card.type='button'; card.className='assetCard folderCard';
+      const icon=document.createElement('span'); icon.className='folderIcon'; icon.textContent='📁';
+      const sp=document.createElement('span'); sp.className='assetLabel'; sp.textContent=folder.name;
+      card.append(icon,sp);
+      card.onclick=()=>{assetModalHistory.push({path:assetModalPath,label:title.textContent,kind:assetModalKind});renderAssetFolderModal(folder.path,folder.name,kind);};
+      grid.appendChild(card);
+    }
+    for(const file of files){
+      const card=makeAssetCard(file,kind);
+      if(kind==='sticker' && path==='stickers' && STANDARD_STICKER_LABELS[file.name]){
+        const label=card.querySelector('.assetLabel');
+        if(label) label.textContent=STANDARD_STICKER_LABELS[file.name];
+      }
+      grid.appendChild(card);
+    }
+    if(!folders.length&&!files.length){
+      const empty=document.createElement('div');
+      empty.className='assetFolderEmpty';
+      empty.textContent='このフォルダにはPNG/JPEG画像がありません。';
+      grid.appendChild(empty);
+    }
+  }catch(e){
+    grid.innerHTML='';
+    const empty=document.createElement('div');
+    empty.className='assetFolderEmpty';
+    empty.textContent='フォルダの読み込みに失敗しました。';
+    grid.appendChild(empty);
+    console.error(e);
+  }
+}
+async function openAssetFolderModal(path,label,kind){
+  const modal=document.getElementById('assetFolderModal');
+  if(!modal)return;
+  assetModalKind=kind;
+  assetModalRootPath=kind==='bg'?'backgrounds':'stickers';
+  assetModalRootTitle=kind==='bg'?'背景':'スタンプ';
+  assetModalHistory=[];
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden','false');
+  document.body.style.overflow='hidden';
+  await renderAssetFolderModal(path,label,kind);
+}
+document.getElementById('assetFolderClose').onclick=closeAssetFolderModal;
+document.getElementById('assetFolderPrev').onclick=()=>{
+  const p=assetModalHistory.pop();
+  if(p)renderAssetFolderModal(p.path,p.label,p.kind);
+};
+document.getElementById('assetFolderBack').onclick=()=>{
+  assetModalHistory=[];
+  if(assetModalPath!==assetModalRootPath)
+    renderAssetFolderModal(assetModalRootPath,assetModalRootTitle,assetModalKind);
+};
+document.getElementById('assetFolderModal').addEventListener('click',e=>{
+  if(e.target.id==='assetFolderModal') closeAssetFolderModal();
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeAssetFolderModal();
+});
+
 function setupAssetBrowser(kind){
   const grid=document.getElementById(kind==='bg'?'bgGrid':'standardStickerGrid');
   const back=document.getElementById(kind==='bg'?'bgBackBtn':'stickerBackBtn');
@@ -1186,7 +1374,7 @@ document.getElementById('share').onclick=()=>sharePng('共有');
 // Apps Script returns the actual Drive sharing URL to this page via postMessage.
 // The QR then contains that verified public sharing URL.
 const SHARE_SERVER_URL='https://script.google.com/macros/s/AKfycbzmn5ZkZ6VER-pJJNqfPb4hj2FQoROBdK3rM24yZMBsxTCOtiQceWENjsY9UpsmkDQIrw/exec';
-const SHARE_CLIENT_VERSION='v101';
+const SHARE_CLIENT_VERSION='v103';
 let lastShareQrBlob=null,lastShareQrObjectUrl=null,lastShareId='',lastSharedPngUrl='';
 function createClientShareId(){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
