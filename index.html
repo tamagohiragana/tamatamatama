@@ -28,7 +28,7 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 .bad{color:#b00020;font-weight:700}.ok{color:#176b2c;font-weight:700}
 .topCreateGrid{display:flex;flex-direction:column;width:100%;gap:14px}.createMain,.backgroundPanel{min-width:0;width:100%}.backgroundPanel{overflow:hidden}.controls{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.controlBox{border:1px solid #d9e3ef;border-radius:15px;padding:13px;background:#fbfdff}
 .check{display:flex;align-items:center;gap:9px;margin:8px 0;font-weight:700}.check input{width:20px;height:20px;accent-color:#1685e5}
-.colorRow{display:grid;grid-template-columns:76px minmax(0,1fr);align-items:center;gap:12px;margin:12px 0;font-weight:800}.colorGrid{display:grid;grid-template-columns:repeat(12,minmax(24px,1fr));gap:7px}.colorBtn{width:100%;aspect-ratio:1;border:2px solid #d4dce7;border-radius:9px;padding:0;background:#fff;cursor:pointer;box-shadow:inset 0 0 0 1px #fff}.colorBtn.active{border-color:#1685e5;box-shadow:0 0 0 2px #1685e5}.colorBtn[data-color="#ffffff"]{background:#fff!important}
+.colorRow{display:grid;grid-template-columns:76px minmax(0,1fr);align-items:center;gap:12px;margin:12px 0;font-weight:800}.textColorHint{font-size:12px;color:#68758a;margin:4px 0 10px 0;line-height:1.5;width:100%;box-sizing:border-box}.textColorActions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:6px 0 4px 0;width:100%;box-sizing:border-box}.textColorActions button{padding:8px 10px;font-size:12px;background:#eef3f8;color:#182b55;border:1px solid #d5e0ec;min-width:0;width:100%;white-space:nowrap}.textColorActions button:active{background:#e2eaf3}.colorGrid{display:grid;grid-template-columns:repeat(12,minmax(24px,1fr));gap:7px}.colorBtn{width:100%;aspect-ratio:1;border:2px solid #d4dce7;border-radius:9px;padding:0;background:#fff;cursor:pointer;box-shadow:inset 0 0 0 1px #fff}.colorBtn.active{border-color:#1685e5;box-shadow:0 0 0 2px #1685e5}.colorBtn[data-color="#ffffff"]{background:#fff!important}
 @media(max-width:800px){.colorGrid{grid-template-columns:repeat(6,minmax(28px,1fr));gap:8px}.colorRow{grid-template-columns:62px minmax(0,1fr);gap:8px}}
 .bgGrid{display:grid;grid-template-columns:repeat(8,minmax(90px,1fr));gap:10px;margin-top:10px}.bgBtn{padding:4px;border:3px solid transparent;border-radius:14px;background:#fff;cursor:pointer}.bgBtn.active{border-color:#1685e5}.bgBtn img{display:block;width:100%;aspect-ratio:1;border-radius:10px;object-fit:cover}.bgLabel{font-size:11px;margin-top:4px;color:#43546d;font-weight:700}.backgroundPanel .small{display:block;max-width:100%;overflow:hidden}.backgroundPanel input[type=file]{display:block;max-width:100%;width:100%;font-size:11px;overflow:hidden}
 .layoutGrid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
@@ -280,6 +280,8 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
       <div class="posRange"><label for="posX">X軸</label><input id="posX" type="range" min="0" max="1000" step="1" value="125"><output id="posXv">125px</output><input id="posXNum" class="numInput" type="number" min="0" max="1000" step="1" value="125" aria-label="X軸(px)"></div>
       <div class="posRange"><label for="posY">Y軸</label><input id="posY" type="range" min="0" max="1000" step="1" value="105"><output id="posYv">105px</output><input id="posYNum" class="numInput" type="number" min="0" max="1000" step="1" value="105" aria-label="Y軸(px)"></div>
       <div class="colorRow"><label>文字色</label><div id="colorGrid" class="colorGrid" aria-label="文字色を選択"></div></div>
+      <div class="textColorHint">入力欄で色を変えたい文字を選択してから色をタップすると、その範囲だけ色が変わります。選択なしなら全体の基本色を変更します。</div>
+      <div class="textColorActions"><button id="clearTextColors" type="button">選択範囲を基本色に戻す</button><button id="clearAllTextColors" type="button">色分けを全部リセット</button></div>
       <label class="check"><input id="useOutline" type="checkbox" checked> 白いアウトラインをつける</label>
       <div class="range outlineRange"><label for="outlineSize">白フチ</label><input id="outlineSize" type="range" min="0" max="10" step="1" value="3"><span id="outlineSizev">3</span><input id="outlineSizeNum" class="numInput" type="number" min="0" max="10" step="1" value="3" aria-label="白フチの太さ"></div>
       <label class="check"><input id="useQR" type="checkbox" checked> QRコードをつける（左下・常に最前面）</label>
@@ -395,16 +397,100 @@ const TEXT_COLORS=[
   ['#e53935','レッド'],['#ef5fa8','ピンク'],['#8e5bd9','パープル'],['#8a5a3b','ブラウン']
 ];
 let textColor='#111111';
+// 部分着色は文字レイヤーだけに適用。start/endはtextareaのUTF-16位置。
+let textColorRanges=[];
+function getTextColorAt(start,end){
+  for(let i=textColorRanges.length-1;i>=0;i--){
+    const r=textColorRanges[i];
+    if(start>=r.start && end<=r.end) return r.color;
+  }
+  return textColor;
+}
+function addTextColorRange(start,end,color){
+  if(!(end>start)) return;
+  textColorRanges.push({start,end,color});
+  if(textColorRanges.length>200) textColorRanges=textColorRanges.slice(-200);
+}
+function resetSelectedTextColor(){
+  const sel=getRememberedTextSelection();
+  const start=sel.start,end=sel.end;
+  if(end<=start){alert('色を戻したい文字を入力欄で選択してください。');return;}
+  // 選択範囲に基本色を上書きする。
+  addTextColorRange(start,end,textColor);
+  renderComposition();
+}
+function resetAllTextColors(){
+  textColorRanges=[];
+  renderComposition();
+}
+// v106: 色ボタンをタップした瞬間にtextareaの選択範囲がblurで消える問題を防止。
+let lastTextSelection={start:0,end:0};
+function rememberTextSelection(){
+  if(!input)return;
+  const start=Number.isFinite(input.selectionStart)?input.selectionStart:0;
+  const end=Number.isFinite(input.selectionEnd)?input.selectionEnd:start;
+  if(end>start) lastTextSelection={start,end};
+}
+['select','keyup','mouseup','touchend','input'].forEach(ev=>input.addEventListener(ev,rememberTextSelection));
+input.addEventListener('selectionchange',rememberTextSelection);
+input.addEventListener('focus',rememberTextSelection);
+input.addEventListener('blur',rememberTextSelection);
+
+function getRememberedTextSelection(){
+  const liveStart=Number.isFinite(input.selectionStart)?input.selectionStart:0;
+  const liveEnd=Number.isFinite(input.selectionEnd)?input.selectionEnd:liveStart;
+  if(liveEnd>liveStart){
+    lastTextSelection={start:liveStart,end:liveEnd};
+  }
+  return lastTextSelection;
+}
+
 function initTextColors(){
   colorGrid.innerHTML='';
   for(const [color,label] of TEXT_COLORS){
     const b=document.createElement('button');b.type='button';b.className='colorBtn'+(color===textColor?' active':'');
     b.dataset.color=color;b.title=label;b.setAttribute('aria-label',label);b.style.background=color;
-    b.onclick=()=>{textColor=color;document.querySelectorAll('.colorBtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderComposition()};
+    // v108: スマホでは色ボタンへフォーカスが移る前に選択範囲を確定し、
+    // pointerdownの時点で着色処理まで完了する。click時にselectionStartが0/0へ
+    // 戻って「全体の基本色変更」になってしまう問題を避ける。
+    let pointerApplied=false;
+    const applyColorFromSelection=()=>{
+      const liveStart=Number.isFinite(input.selectionStart)?input.selectionStart:0;
+      const liveEnd=Number.isFinite(input.selectionEnd)?input.selectionEnd:liveStart;
+      let start=liveStart,end=liveEnd;
+      if(end<=start){
+        start=lastTextSelection.start; end=lastTextSelection.end;
+      }else{
+        lastTextSelection={start,end};
+      }
+      textColor=color;
+      document.querySelectorAll('.colorBtn').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      if(end>start) addTextColorRange(start,end,color);
+      renderComposition();
+    };
+    b.addEventListener('pointerdown',(ev)=>{
+      // default focus移動を止め、textareaの選択状態を維持したまま処理する。
+      ev.preventDefault();
+      pointerApplied=true;
+      applyColorFromSelection();
+    });
+    b.onclick=()=>{
+      // キーボード操作などpointerdownを伴わない場合だけclickで処理。
+      if(pointerApplied){pointerApplied=false;return;}
+      applyColorFromSelection();
+    };
     colorGrid.appendChild(b);
   }
 }
 initTextColors();
+document.getElementById('clearTextColors').onclick=()=>{
+  const sel=getRememberedTextSelection();
+  if(sel.end<=sel.start){alert('色を戻したい文字を入力欄で選択してください。');return;}
+  addTextColorRange(sel.start,sel.end,textColor);
+  renderComposition();
+};
+document.getElementById('clearAllTextColors').onclick=resetAllTextColors;
 const bgFile=document.getElementById('bgFile');
 let selectedBG='backgrounds/blue.png';
 let customBG=null;
@@ -796,17 +882,28 @@ async function drawTextAndQR(layout,forSave=false,renderId=0){
   const cache={};
   textCtx.clearRect(0,0,1200,1200);
   textCtx.imageSmoothingEnabled=false;
+  let sourcePos=0;
+  const sourceText=input.value||'';
   for(const line of layout.lines){
     if(renderId!==renderSeq)return;
-    if(line.blank){y+=layout.paraGap;continue;}
+    if(line.blank){
+      // 空行は元テキスト中の改行1個を消費。
+      sourcePos=Math.min(sourceText.length,sourcePos+1);
+      y+=layout.paraGap;continue;
+    }
     let x=layout.left;
     for(const ch of line.text){
+      const chStart=sourcePos, chEnd=sourcePos+ch.length;
+      sourcePos=chEnd;
       if(ch===' '||ch==='　'){x+=Math.max(8,fs*.45);continue;}
       const m=glyphMetrics(ch,fs); const im=cache[ch]||(cache[ch]=await getGlyphImage(ch));
       if(renderId!==renderSeq)return;
-      if(im){drawGlyph(textCtx,im,x,y,fs,textColor,useOutline.checked);} else {textCtx.font='700 '+fs+'px sans-serif';textCtx.fillStyle=textColor;textCtx.fillText('?',x,y+fs*.82);}
+      const chColor=getTextColorAt(chStart,chEnd);
+      if(im){drawGlyph(textCtx,im,x,y,fs,chColor,useOutline.checked);} else {textCtx.font='700 '+fs+'px sans-serif';textCtx.fillStyle=chColor;textCtx.fillText('?',x,y+fs*.82);}
       x+=Math.max(1,m.w-1);
     }
+    // 行末の改行は、次のlineがblank/次段落ならここで消費する。
+    if(sourcePos<sourceText.length && sourceText[sourcePos]==='\n') sourcePos++;
     y+=fs+layout.lineGap;
   }
 }
@@ -829,7 +926,11 @@ async function renderComposition(){
   }
   updateLayerVisuals();
 }
-input.oninput=renderComposition;
+input.oninput=()=>{
+  // 文字入力では部分着色範囲を勝手に消さない。
+  // 色指定は色ボタンを押したときだけ変更する。
+  renderComposition();
+};
 function clampNum(v,min,max,fallback){const n=Number(v);return Number.isFinite(n)?Math.min(max,Math.max(min,n)):fallback}
 function setControlValue(id,v){
   const n=Number(v);
