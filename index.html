@@ -1152,12 +1152,12 @@ function moveSelectedLayer(dir){
   [layerOrder[i],layerOrder[j]]=[layerOrder[j],layerOrder[i]];
   updateLayerVisuals();
   selectSticker(selectedSticker);
-  renderComposition();
 }
 
 function deselectStickers(){selectSticker(null)}
 function removeSticker(st){
   if(!st)return;
+  if(st.colorObjectUrl){try{URL.revokeObjectURL(st.colorObjectUrl)}catch(e){}st.colorObjectUrl='';}
   if(st.el)st.el.remove();
   stickers=stickers.filter(x=>x!==st);
   layerOrder=layerOrder.filter(x=>x!==st);
@@ -1238,7 +1238,7 @@ function addSticker(img,name){
       const ratio=Math.max(.15,Math.min(4,dist/st.gesture.dist));
       st.w=st.gesture.w*ratio;st.h=st.gesture.h*ratio;st.rot=st.gesture.rot+(ang-st.gesture.angle);
     }
-    updateStickerElement(st);renderComposition();
+    updateStickerElement(st);
   });
   const end=e=>{
     st.pointers.delete(e.pointerId);
@@ -1255,7 +1255,7 @@ function addSticker(img,name){
     if(st.rotatePointer!==e.pointerId)return;
     const rr=el.getBoundingClientRect(),cx=rr.left+rr.width/2,cy=rr.top+rr.height/2;
     const a=Math.atan2(e.clientY-cy,e.clientX-cx);st.rot=st.rotateBase+(a-st.rotateStartAngle);
-    updateStickerElement(st);renderComposition();
+    updateStickerElement(st);
   });
   const rend=e=>{if(st.rotatePointer===e.pointerId)st.rotatePointer=null};
   rot.addEventListener('pointerup',rend);rot.addEventListener('pointercancel',rend);
@@ -1277,13 +1277,15 @@ function renderStickerTools(){
   outline.textContent=selectedSticker.whiteOutline?'白枠：ON':'白枠：OFF';
   outline.classList.toggle('active',!!selectedSticker.whiteOutline);
 }
-document.getElementById('stickerFlipY').onclick=()=>{if(!selectedSticker)return;selectedSticker.flipY=!selectedSticker.flipY;updateStickerElement(selectedSticker);renderStickerTools();renderComposition()};
-document.getElementById('stickerFlipX').onclick=()=>{if(!selectedSticker)return;selectedSticker.flipX=!selectedSticker.flipX;updateStickerElement(selectedSticker);renderStickerTools();renderComposition()};
-document.getElementById('stickerOutline').onclick=()=>{if(!selectedSticker)return;selectedSticker.whiteOutline=!selectedSticker.whiteOutline;renderStickerTools();renderComposition()};
+document.getElementById('stickerFlipY').onclick=()=>{if(!selectedSticker)return;selectedSticker.flipY=!selectedSticker.flipY;updateStickerElement(selectedSticker);renderStickerTools()};
+document.getElementById('stickerFlipX').onclick=()=>{if(!selectedSticker)return;selectedSticker.flipX=!selectedSticker.flipX;updateStickerElement(selectedSticker);renderStickerTools()};
+document.getElementById('stickerOutline').onclick=()=>{if(!selectedSticker)return;selectedSticker.whiteOutline=!selectedSticker.whiteOutline;renderStickerTools()};
+stickerFile.onclick=()=>{stickerFile.value=''};
 stickerFile.onchange=e=>{
   const f=e.target.files?.[0];if(!f)return;
   const u=URL.createObjectURL(f),im=new Image();
   im.onload=()=>{addSticker(im,f.name);URL.revokeObjectURL(u);stickerFile.value=''};
+  im.onerror=()=>{URL.revokeObjectURL(u);stickerFile.value='';};
   im.src=u;
 };
 composeCanvas.addEventListener('pointerdown',()=>deselectStickers());
@@ -1296,13 +1298,11 @@ function resizeSelectedSticker(factor){
   const ratio=nw/st.w;
   st.w=nw; st.h=Math.max(45,Math.min(1100,st.h*ratio));
   updateStickerElement(st);
-  renderComposition();
 }
 document.getElementById('stickerSizeUp').onclick=()=>resizeSelectedSticker(1.15);
 document.getElementById('stickerSizeDown').onclick=()=>resizeSelectedSticker(1/1.15);
 updateLayerButtons();
 window.addEventListener('resize',()=>requestAnimationFrame(()=>stickers.forEach(updateStickerElement)));
-stickerFile.onchange=e=>{const f=e.target.files?.[0];if(!f)return;const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{addSticker(im,f.name);URL.revokeObjectURL(u)};im.src=u};
 
 document.getElementById('clear').onclick=()=>{input.value='';renderComposition();input.focus()};
 document.getElementById('copy').onclick=()=>navigator.clipboard.writeText(input.value);
@@ -2002,300 +2002,6 @@ document.getElementById('copy2').onclick=()=>navigator.clipboard.writeText(docum
   }catch(e){console.error(e)}
 })();
 </script>
-<script>
-/* v113: スタンプカラー編集 - 小ボタンで開くモーダル／単色カラーピッカー／ライブHSL */
-(function(){
-const editor=document.getElementById('stickerColorEditor');if(!editor)return;
-const backdrop=document.getElementById('stickerColorBackdrop'),openBtn=document.getElementById('stickerColorOpen'),closeBtn=document.getElementById('stickerColorClose'),customPicker=document.getElementById('stickerCustomPicker');
-const modeEl=document.getElementById('stickerColorMode'),previewEl=document.getElementById('stickerColorPreview'),grid=document.getElementById('stickerPaletteGrid'),hslBox=document.getElementById('stickerHslEditor'),paletteHsl=document.getElementById('stickerPaletteHsl'),hint=document.getElementById('stickerColorHint');
-const copyBtn=document.getElementById('stickerPaletteCopy'),pasteBtn=document.getElementById('stickerPalettePaste'),resetBtn=document.getElementById('stickerColorReset'),protect=document.getElementById('stickerProtectOutline'),applyExcept=document.getElementById('stickerApplyHslExcept');
-const hEls={h:[document.getElementById('stickerHue'),document.getElementById('stickerHueVal')],s:[document.getElementById('stickerSat'),document.getElementById('stickerSatVal')],l:[document.getElementById('stickerLight'),document.getElementById('stickerLightVal')]};
-const phEls={h:[document.getElementById('stickerPaletteHue'),document.getElementById('stickerPaletteHueVal')],s:[document.getElementById('stickerPaletteSat'),document.getElementById('stickerPaletteSatVal')],l:[document.getElementById('stickerPaletteLight'),document.getElementById('stickerPaletteLightVal')]};
-const STORE='TAMA_STICKER_PALETTE_CLIPBOARD_V2';const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
-const hex=(r,g,b)=>'#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('').toUpperCase();
-const rgbFromHex=x=>{const m=String(x||'').match(/^#?([0-9a-f]{6})$/i);return m?[parseInt(m[1].slice(0,2),16),parseInt(m[1].slice(2,4),16),parseInt(m[1].slice(4,6),16)]:[0,0,0]};
-function rgbToHsl(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0,s=0,l=(mx+mn)/2;if(d){s=d/(1-Math.abs(2*l-1));switch(mx){case r:h=((g-b)/d)%6;break;case g:h=(b-r)/d+2;break;default:h=(r-g)/d+4}h*=60;if(h<0)h+=360}return[h,s*100,l*100]}
-function hslToRgb(h,s,l){h=((h%360)+360)%360;s=clamp(s,0,100)/100;l=clamp(l,0,100)/100;const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2;let r=0,g=0,b=0;if(h<60)[r,g,b]=[c,x,0];else if(h<120)[r,g,b]=[x,c,0];else if(h<180)[r,g,b]=[0,c,x];else if(h<240)[r,g,b]=[0,x,c];else if(h<300)[r,g,b]=[x,0,c];else[r,g,b]=[c,0,x];return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)]}
-function lum(p){return .2126*p[0]+.7152*p[1]+.0722*p[2]}
-function sourceCanvas(st){
-  if(!st)return null;
-  /* IMPORTANT: st.img.src is the visible/committed image and is rewritten by
-     rebuild(). Never use that rewritten image as the next color-edit source.
-     Keep one immutable pixel source per sticker instead. */
-  if(st.colorBaseCanvas?.width&&st.colorBaseCanvas?.height)return st.colorBaseCanvas;
-  const im=st.img;
-  if(!im?.naturalWidth||!im?.naturalHeight)return null;
-  const sc=Math.min(1,1024/Math.max(im.naturalWidth,im.naturalHeight));
-  const c=document.createElement('canvas');
-  c.width=Math.max(1,Math.round(im.naturalWidth*sc));
-  c.height=Math.max(1,Math.round(im.naturalHeight*sc));
-  const x=c.getContext('2d',{willReadFrequently:true});
-  x.imageSmoothingEnabled=false;
-  x.drawImage(im,0,0,c.width,c.height);
-  st.colorBaseCanvas=c;
-  st.colorBaseSig='base:'+c.width+'x'+c.height;
-  return c;
-}
-function analyze(st){const c=sourceCanvas(st);if(!c)return;const sig=st.colorBaseSig||('base:'+c.width+'x'+c.height);const sourceChanged=st.colorSourceSig!==sig;if(sourceChanged){st.colorSourceSig=sig;st.colorReady=false;st.colorMode=null;st.palette=[];st.hsl={h:0,s:0,l:0};st.paletteHsl={h:0,s:0,l:0};st.colorPreviewHsl=null;st.colorPreviewDraft=null;st.colorPreviewBaseCanvas=null;st.colorPreviewBaseData=null;st.colorWorkCanvas=null;st.activePaletteIndex=0;st.excludeIndex=null;st.protectOutline=true}const d=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height).data,map=new Map();for(let i=0;i<d.length;i+=4){if(d[i+3]<128)continue;const r=d[i],g=d[i+1],b=d[i+2],k=(r<<16)|(g<<8)|b;let q=map.get(k);if(!q)map.set(k,q={n:0,r,g,b});q.n++}const reps=[...map.values()].sort((a,b)=>b.n-a.n);const old=sourceChanged?[]:(st.palette||[]);if(reps.length<=32){st.colorMode='palette';st.palette=reps.map(q=>{const o=[q.r,q.g,q.b],p=old.find(z=>z.original?.[0]===q.r&&z.original?.[1]===q.g&&z.original?.[2]===q.b);return{r:q.r,g:q.g,b:q.b,original:o,color:p?.color||hex(...o),locked:!!p?.locked}});if(st.protectOutline){let di=-1,dl=Infinity;st.palette.forEach((p,i)=>{const lv=lum(p.original);if(lv<dl){dl=lv;di=i}});st.excludeIndex=di}else st.excludeIndex=null}else{st.colorMode='hsl';if(sourceChanged||!st.hsl)st.hsl={h:0,s:0,l:0};st.palette=[]}st.activePaletteIndex=Number.isInteger(st.activePaletteIndex)?Math.min(st.activePaletteIndex,Math.max(0,st.palette.length-1)):0;st.colorReady=true;rebuild(st)}
-function rebuild(st){const src=sourceCanvas(st);if(!src)return;const c=st.colorWorkCanvas||(st.colorWorkCanvas=document.createElement('canvas'));c.width=src.width;c.height=src.height;const x=c.getContext('2d',{willReadFrequently:true});x.imageSmoothingEnabled=false;x.clearRect(0,0,c.width,c.height);x.drawImage(src,0,0);const im=x.getImageData(0,0,c.width,c.height),d=im.data;if(st.colorMode==='palette'){const lookup=new Map((st.palette||[]).map(p=>[(p.original[0]<<16)|(p.original[1]<<8)|p.original[2],rgbFromHex(p.color)]));for(let i=0;i<d.length;i+=4){if(d[i+3]===0)continue;const q=lookup.get((d[i]<<16)|(d[i+1]<<8)|d[i+2]);if(q){d[i]=q[0];d[i+1]=q[1];d[i+2]=q[2]}}}else{const q=st.hsl||{h:0,s:0,l:0};for(let i=0;i<d.length;i+=4){if(d[i+3]===0)continue;const z=rgbToHsl(d[i],d[i+1],d[i+2]),q2=hslToRgb(z[0]+q.h,clamp(z[1]+q.s,0,100),clamp(z[2]+q.l,0,100));d[i]=q2[0];d[i+1]=q2[1];d[i+2]=q2[2]}}x.putImageData(im,0,0);if(st.el){const dom=st.el.querySelector('img');if(dom){dom.src=c.toDataURL('image/png');dom.style.transform=`scale(${st.flipX?-1:1},${st.flipY?-1:1})`;}} if(st===selectedSticker)renderLiveStickerPreview(st)} 
-
-function renderLiveStickerPreview(st){
-  const cv=document.getElementById('stickerColorLiveCanvas');
-  if(!cv||!st)return;
-  const ctx=cv.getContext('2d',{willReadFrequently:true});
-  if(!ctx)return;
-  const w=cv.width||180,h=cv.height||180;
-  // 元画像を小窓サイズで一度だけ作成。スライダー中にsourceCanvas()/toDataURL()を繰り返さない。
-  if(!st.colorPreviewBaseCanvas){
-    const src=sourceCanvas(st);
-    if(!src)return;
-    const base=document.createElement('canvas');base.width=w;base.height=h;
-    const bx=base.getContext('2d',{willReadFrequently:true});bx.imageSmoothingEnabled=false;
-    const pad=8,scale=Math.min((w-pad*2)/src.width,(h-pad*2)/src.height);
-    const dw=Math.max(1,Math.round(src.width*scale)),dh=Math.max(1,Math.round(src.height*scale));
-    bx.clearRect(0,0,w,h);bx.drawImage(src,Math.round((w-dw)/2),Math.round((h-dh)/2),dw,dh);
-    st.colorPreviewBaseCanvas=base;
-    st.colorPreviewBaseData=bx.getImageData(0,0,w,h);
-  }
-  const out=ctx.createImageData(w,h);out.data.set(st.colorPreviewBaseData.data);
-  const d=out.data;
-  const override=(st.colorPreviewDraft&&st.colorPreviewDraft.index===st.activePaletteIndex)?st.colorPreviewDraft.hex:null;
-  if(st.colorMode==='palette'&&st.palette){
-    const map=new Map(st.palette.map((p,i)=>[(p.original[0]<<16)|(p.original[1]<<8)|p.original[2],rgbFromHex(i===st.activePaletteIndex&&override?override:p.color)]));
-    for(let i=0;i<d.length;i+=4){
-      if(d[i+3]===0)continue;
-      const q=map.get((d[i]<<16)|(d[i+1]<<8)|d[i+2]);
-      if(q){d[i]=q[0];d[i+1]=q[1];d[i+2]=q[2];}
-    }
-  }
-  ctx.clearRect(0,0,w,h);ctx.putImageData(out,0,0);
-}
-
-
-function renderColorPreview(st){
-  if(!st||st.colorMode!=='palette'||!st.palette?.length){
-    if(previewEl){previewEl.hidden=true;previewEl.innerHTML='';}
-    return;
-  }
-  const i=Math.max(0,Math.min(st.activePaletteIndex||0,st.palette.length-1)),p=st.palette[i];
-  if(previewEl){previewEl.hidden=true;previewEl.innerHTML='';}
-  const os=document.getElementById('stickerOriginalSwatch'),cs=document.getElementById('stickerCurrentSwatch');
-  const ot=document.getElementById('stickerOriginalText'),ct=document.getElementById('stickerCurrentText');
-  if(os)os.style.background=hex(...p.original);
-  if(cs)cs.style.background=p.color;
-  if(ot)ot.innerHTML='<small>元の色</small>'+hex(...p.original);
-  if(ct)ct.innerHTML='<small>選択した色（現在）</small>'+p.color;
-  renderLiveStickerPreview(st);
-}
-
-function renderEditor(){
-  const st=selectedSticker;
-  if(!st){editor.hidden=true;backdrop.hidden=true;return}
-  if(!st.colorReady)analyze(st);
-  if(st.colorMode==='palette'){
-    modeEl.textContent='パレット編集：'+st.palette.length+'色（色をタップしてカラーピッカー）';
-    renderColorPreview(st);
-    renderLiveStickerPreview(st);
-    if(!customPicker.hidden){const pp=st.palette[Math.max(0,Math.min(st.activePaletteIndex||0,st.palette.length-1))];setPickerFromHex(pp.color)}
-    grid.hidden=false;hslBox.hidden=true;paletteHsl.hidden=false;grid.innerHTML='';
-    st.palette.forEach((p,i)=>{
-      const row=document.createElement('div');
-      row.className='stickerPaletteItem'+(i===st.excludeIndex?' exclude':'')+(p.locked?' locked':'')+(i===st.activePaletteIndex?' activePalette':'');
-      const sw=document.createElement('span');sw.className='stickerPaletteSwatch';sw.style.background=hex(...p.original);sw.title='元の色';
-      const lab=document.createElement('span');lab.className='stickerPaletteHex';lab.innerHTML='<b>元</b> '+hex(...p.original)+'<br><b>現在</b> '+p.color;
-      const lockWrap=document.createElement('label');lockWrap.className='stickerPaletteLock';lockWrap.title='この色をHSL変更から除外';const lock=document.createElement('input');lock.type='checkbox';lock.checked=!!p.locked;const lockText=document.createElement('span');lockText.textContent='変更ロック';lockWrap.append(lock,lockText);lock.onchange=(ev)=>{ev.stopPropagation();p.locked=!!lock.checked;row.classList.toggle('locked',p.locked);renderColorPreview(st);renderLiveStickerPreview(st);};lockWrap.onclick=(ev)=>ev.stopPropagation(); const pick=document.createElement('button');pick.type='button';pick.className='stickerPaletteColorBtn';pick.title='この色をカスタムカラーで変更';pick.style.background=p.color;pick.innerHTML='<span>色変更</span>';
-      pick.onclick=(ev)=>{ev.stopPropagation();st.activePaletteIndex=i;renderEditor();setTimeout(()=>openCustomPickerForActive(),0)};
-      row.onclick=()=>{st.activePaletteIndex=i;renderEditor();setTimeout(()=>openCustomPickerForActive(),0)};
-      row.append(sw,lab,lockWrap,pick);grid.appendChild(row);
-    });
-    const q=st.paletteHsl||{h:0,s:0,l:0};
-    for(const k of ['h','s','l']){phEls[k][0].value=q[k]||0;phEls[k][1].value=q[k]||0}
-    hint.textContent='色をタップするとカラーピッカーが開きます。HSLはパレット内の全色に適用されます。';
-  }else{
-    modeEl.textContent='HSL編集：33色以上の画像です（画像全体）';
-    if(previewEl){previewEl.hidden=true;previewEl.innerHTML=''}
-    grid.hidden=true;paletteHsl.hidden=true;hslBox.hidden=false;customPicker.hidden=true;
-    const q=st.hsl||{h:0,s:0,l:0};
-    for(const k of ['h','s','l']){hEls[k][0].value=q[k]||0;hEls[k][1].value=q[k]||0}
-    hint.textContent='色数が33色以上なので画像全体をHSLで調整します。スライダーを動かすと即時反映されます。';
-  }
-  // 選択したスタンプのカラー編集ウインドウだけを表示。選択しただけでは開かない。
-}
-function refresh(){renderEditor()}
-function applyHsl(k){if(!selectedSticker)return;const a=k==='h'?-180:-100,b=k==='h'?180:100,v=clamp(hEls[k][1].value,a,b);hEls[k][0].value=v;hEls[k][1].value=v;selectedSticker.hsl=selectedSticker.hsl||{h:0,s:0,l:0};selectedSticker.hsl[k]=v;rebuild(selectedSticker);renderComposition()}
-for(const[k,[r,n]]of Object.entries(hEls)){r.oninput=()=>{n.value=r.value;applyHsl(k)};n.oninput=()=>applyHsl(k)}
-function applyPaletteHslLive(){const st=selectedSticker;if(!st||st.colorMode!=='palette')return;const q=st.paletteHsl||{h:0,s:0,l:0};if(st.protectOutline){let di=-1,dl=Infinity;st.palette.forEach((p,i)=>{const lv=lum(p.original);if(lv<dl){dl=lv;di=i}});st.excludeIndex=di}else st.excludeIndex=null;for(let i=0;i<st.palette.length;i++){const p=st.palette[i];if(i===st.excludeIndex||p.locked){continue}const z=rgbToHsl(...p.original),c=hslToRgb(z[0]+q.h,clamp(z[1]+q.s,0,100),clamp(z[2]+q.l,0,100));p.color=hex(...c)}rebuild(st);renderComposition();renderLiveStickerPreview(st);renderColorPreview(st);const rows=document.querySelectorAll('#stickerPaletteGrid .stickerPaletteItem');rows.forEach((row,i)=>{const p=st.palette[i];const lab=row.querySelector('.stickerPaletteHex');const btn=row.querySelector('.stickerPaletteColorBtn');if(lab)lab.innerHTML='<b>元</b> '+hex(...p.original)+'<br><b>現在</b> '+p.color;if(btn)btn.style.background=p.color})}
-for(const[k,[r,n]]of Object.entries(phEls)){r.oninput=()=>{n.value=r.value;if(selectedSticker){selectedSticker.paletteHsl=selectedSticker.paletteHsl||{h:0,s:0,l:0};selectedSticker.paletteHsl[k]=Number(r.value);applyPaletteHslLive()}};n.oninput=()=>{r.value=clamp(n.value,k==='h'?-180:-100,k==='h'?180:100);r.oninput()}}
-applyExcept.onclick=()=>applyPaletteHslLive();
-if(protect){protect.checked=true;protect.onchange=()=>{const st=selectedSticker;if(!st||st.colorMode!=='palette')return;st.protectOutline=!!protect.checked;applyPaletteHslLive();renderEditor();};}
-function openColorEditor(){if(!selectedSticker)return;analyze(selectedSticker);editor.hidden=false;backdrop.hidden=false;try{renderEditor()}catch(e){console.error('色変更ウインドウの描画エラー:',e);if(hint)hint.textContent='色変更画面の描画でエラーが発生しました。'}if(selectedSticker.colorMode==='palette')setTimeout(()=>openCustomPickerForActive(),0)}
-function closeColorEditor(){editor.hidden=true;backdrop.hidden=true;if(customPicker)customPicker.hidden=true}
-window.openStickerColorEditor=openColorEditor; window.closeStickerColorEditor=closeColorEditor; window.__tamaGetSelectedSticker=()=>selectedSticker; openBtn.onclick=openColorEditor; closeBtn.onclick=closeColorEditor; backdrop.onclick=closeColorEditor;
-// v131 public bridge: later stabilization code must call the same scoped rebuild/render logic.
-window.__tamaRebuildSticker=function(st){if(st&&typeof rebuild==='function')rebuild(st)};
-window.__tamaRenderStickerEditor=function(){try{renderEditor()}catch(e){console.error('render editor bridge',e)}};
-window.__tamaRenderColorPreview=function(st){try{renderColorPreview(st)}catch(e){console.error('render color preview bridge',e)}};
-copyBtn.onclick=()=>{const st=selectedSticker;if(!st)return;analyze(st);const data=st.colorMode==='palette'?{v:2,mode:'palette',colors:st.palette.map(p=>({original:p.original,color:p.color})),excludeOriginal:null,protectOutline:!!st.protectOutline}:{v:2,mode:'hsl',hsl:{...st.hsl}};localStorage.setItem(STORE,JSON.stringify(data));hint.textContent='カラーパレットを端末内の仮想領域にコピーしました。'};
-pasteBtn.onclick=()=>{const st=selectedSticker;if(!st)return;analyze(st);let data;try{data=JSON.parse(localStorage.getItem(STORE)||'null')}catch(e){}if(!data){hint.textContent='コピーされたカラーパレットがありません。';return}if(st.colorMode==='palette'&&data.mode==='palette'){for(const p of st.palette){let best=null,bd=1e12;for(const q of data.colors||[]){const d=(p.original[0]-q.original[0])**2+(p.original[1]-q.original[1])**2+(p.original[2]-q.original[2])**2;if(d<bd){bd=d;best=q}}if(best)p.color=best.color}st.protectOutline=data.protectOutline!==false;st.excludeIndex=null;rebuild(st);renderEditor();renderComposition();hint.textContent='カラーパレットを色の近さで対応させて貼り付けました。'}else if(st.colorMode==='hsl'&&data.mode==='hsl'){st.hsl={...data.hsl};rebuild(st);renderEditor();renderComposition();hint.textContent='HSL設定を貼り付けました。'}else hint.textContent='編集方式が違うため貼り付けできません。'};
-resetBtn.onclick=()=>{const st=selectedSticker;if(!st)return;analyze(st);if(st.colorMode==='palette'){st.palette.forEach(p=>p.color=hex(...p.original));st.paletteHsl={h:0,s:0,l:0};st.protectOutline=true;st.excludeIndex=null}else st.hsl={h:0,s:0,l:0};rebuild(st);renderEditor();renderComposition()};
-const origSelect=selectSticker;selectSticker=function(st){origSelect(st);if(!st)closeColorEditor();setTimeout(()=>{renderEditor();renderStickerTools()},0)};const origAdd=addSticker;addSticker=function(img,name){origAdd(img,name);setTimeout(refresh,0)};const origRemove=removeSticker;removeSticker=function(st){origRemove(st);setTimeout(refresh,0)};
-document.addEventListener('pointerdown',e=>{const el=e.target.closest?.('.stickerItem');if(!el)return;const st=stickers.find(x=>x.el===el);if(st){selectedSticker=st;setTimeout(refresh,0)}},true);
-function updateColorOpenButton(){if(!openBtn)return;window.__tamaSelectedStickerFlag=!!selectedSticker;openBtn.disabled=false;openBtn.removeAttribute('disabled');openBtn.style.display=selectedSticker?'block':'none';}
-const _rst=renderStickerTools;renderStickerTools=function(){_rst();updateColorOpenButton()};
-window.addEventListener('load',()=>setTimeout(()=>{editor.hidden=true;backdrop.hidden=true;updateColorOpenButton();},0));setTimeout(()=>{editor.hidden=true;backdrop.hidden=true;updateColorOpenButton();},0);
-})();
-
-</script>
-
-<script>
-/* v115: カスタムカラーピッカー実体を追加。v114で呼び出し先が欠落していた問題を修正。 */
-(function(){
-  const cp=document.getElementById('stickerCustomPicker');
-  let sat=document.getElementById('stickerSatCanvas');
-  const hue=document.getElementById('stickerPickerHue');
-  const hueVal=document.getElementById('stickerPickerHueVal');
-  const light=document.getElementById('stickerPickerLight');
-  const lightVal=document.getElementById('stickerPickerLightVal');
-  const hexEl=document.getElementById('stickerPickerHex');
-  const apply=document.getElementById('stickerPickerApply');
-  const live=document.getElementById('stickerColorLiveCanvas');
-  if(!cp||!sat||!hue||!light||!hexEl)return;
-  let currentHue=0,currentLight=50,currentSat=100;
-  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
-  function hslToRgb(h,s,l){
-    h=((h%360)+360)%360;s=clamp(s,0,100)/100;l=clamp(l,0,100)/100;
-    const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2;
-    let r=0,g=0,b=0;
-    if(h<60){r=c;g=x}else if(h<120){r=x;g=c}else if(h<180){g=c;b=x}else if(h<240){g=x;b=c}else if(h<300){r=x;b=c}else{r=c;b=x}
-    return [Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];
-  }
-  function rgbToHex(c){return '#'+c.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('').toUpperCase();}
-  function hexToRgb(v){
-    let x=String(v||'').trim().replace(/^#/,'');
-    if(/^[0-9a-fA-F]{3}$/.test(x))x=x.split('').map(c=>c+c).join('');
-    if(!/^[0-9a-fA-F]{6}$/.test(x))return null;
-    return [parseInt(x.slice(0,2),16),parseInt(x.slice(2,4),16),parseInt(x.slice(4,6),16)];
-  }
-  function rgbToHsl(rgb){
-    let r=rgb[0]/255,g=rgb[1]/255,b=rgb[2]/255;
-    const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
-    let h=0,s=0,l=(max+min)/2;
-    if(d){
-      s=d/(1-Math.abs(2*l-1));
-      if(max===r)h=60*(((g-b)/d)%6); else if(max===g)h=60*((b-r)/d+2); else h=60*((r-g)/d+4);
-      if(h<0)h+=360;
-    }
-    return [h,s*100,l*100];
-  }
-  function active(){try{return typeof window.__tamaGetSelectedSticker==='function'?window.__tamaGetSelectedSticker():window.selectedSticker||null}catch(e){return null}}
-  function getActive(){
-    try{return active();}catch(e){return null}
-  }
-  function redrawSat(){
-    const c=sat.getContext('2d'),w=sat.width,h=sat.height;
-    const g=c.createLinearGradient(0,0,w,0);g.addColorStop(0,'#fff');g.addColorStop(1,'hsl('+currentHue+' 100% 50%)');
-    c.fillStyle=g;c.fillRect(0,0,w,h);
-    const v=c.createLinearGradient(0,0,0,h);v.addColorStop(0,'rgba(255,255,255,0)');v.addColorStop(1,'rgba(0,0,0,1)');
-    c.fillStyle=v;c.fillRect(0,0,w,h);
-    c.strokeStyle='#fff';c.lineWidth=3;c.beginPath();c.arc(currentSat/100*w,(100-currentLight)/100*h,8,0,Math.PI*2);c.stroke();
-    c.strokeStyle='#111';c.lineWidth=1;c.beginPath();c.arc(currentSat/100*w,(100-currentLight)/100*h,10,0,Math.PI*2);c.stroke();
-  }
-  function updateLabels(){
-    if(hueVal)hueVal.value=Math.round(currentHue)+'°';
-    if(lightVal)lightVal.value=Math.round(currentLight)+'%';
-    hue.value=Math.round(currentHue);light.value=Math.round(currentLight);
-  }
-  function updateLive(){
-    const st=getActive();
-    if(!st||st.colorMode!=='palette')return;
-    const i=Math.max(0,Math.min(Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,st.palette.length-1));
-    const p=st.palette[i];
-    if(!p)return;
-    const c=hslToRgb(currentHue,currentSat,currentLight),hx=rgbToHex(c);
-    // ピッカー操作もHSLと同様に実スタンプへ即時反映する。
-    st.colorPreviewDraft={index:i,hex:hx};
-    p.color=hx;
-    try{
-      if(typeof window.__tamaRebuildSticker==='function') window.__tamaRebuildSticker(st);
-      else rebuild(st);
-      renderComposition();
-      renderLiveStickerPreview(st);
-    }catch(e){console.error('color picker live commit',e)}
-    const ow=document.getElementById('stickerOriginalSwatch'),ot=document.getElementById('stickerOriginalText'),cw=document.getElementById('stickerCurrentSwatch'),ct=document.getElementById('stickerCurrentText');
-    const oh=rgbToHex(p.original||[255,255,255]);
-    if(ow)ow.style.background=oh;
-    if(ot)ot.innerHTML='<small>元の色</small>'+oh;
-    if(cw)cw.style.background=hx;
-    if(ct)ct.innerHTML='<small>選択した色（現在）</small>'+hx;
-    const rows=document.querySelectorAll('#stickerPaletteGrid .stickerPaletteItem');
-    if(rows[i]){
-      const lab=rows[i].querySelector('.stickerPaletteHex');
-      const btn=rows[i].querySelector('.stickerPaletteColorBtn');
-      if(lab)lab.innerHTML='<b>元</b> '+oh+'<br><b>現在</b> '+hx;
-      if(btn)btn.style.background=hx;
-    }
-    if(hexEl)hexEl.value=hx;
-    redrawSat();
-  }
-
-  function setPickerFromHex(v){
-    const rgb=hexToRgb(v);if(!rgb)return;
-    const hsl=rgbToHsl(rgb);currentHue=hsl[0];currentSat=hsl[1];currentLight=hsl[2];updateLabels();redrawSat();
-    if(hexEl)hexEl.value=rgbToHex(rgb);
-    const st=getActive();if(st&&st.colorMode==='palette'){st.colorPreviewDraft={index:Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,hex:rgbToHex(rgb)};renderLiveStickerPreview(st);}
-  }
-  function openCustomPickerForActive(){
-    const st=getActive();if(!st||st.colorMode!=='palette')return;
-    const i=Math.max(0,Math.min(st.activePaletteIndex||0,st.palette.length-1));st.activePaletteIndex=i;
-    const p=st.palette[i];
-    cp.hidden=false;
-    st.colorPreviewDraft=null;
-    setPickerFromHex(p.color||rgbToHex(p.original||[0,0,0]));
-    try{renderEditor();}catch(e){}
-    cp.hidden=false;
-    redrawSat();
-  }
-  function pointerPick(ev){
-    const r=sat.getBoundingClientRect();
-    const x=clamp((ev.clientX-r.left)/r.width,0,1),y=clamp((ev.clientY-r.top)/r.height,0,1);
-    currentSat=x*100;currentLight=(1-y)*100;updateLive();
-  }
-  sat.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();sat.setPointerCapture?.(e.pointerId);pointerPick(e)});
-  sat.addEventListener('pointermove',e=>{if(e.buttons)pointerPick(e)});
-  function bindRange(el,onChange){
-    if(!el)return;
-    const run=e=>{e.stopPropagation();onChange()};
-    el.addEventListener('input',run,{passive:false});
-    el.addEventListener('change',run,{passive:false});
-    el.addEventListener('pointerdown',e=>e.stopPropagation(),{passive:true});
-    el.addEventListener('touchstart',e=>e.stopPropagation(),{passive:true});
-  }
-  bindRange(hue,()=>{currentHue=Number(hue.value)||0;updateLabels();redrawSat();updateLive()});
-  bindRange(light,()=>{currentLight=Number(light.value)||0;updateLabels();redrawSat();updateLive()});
-  hexEl.addEventListener('input',e=>{e.stopPropagation();const r=hexToRgb(hexEl.value);if(r){const h=rgbToHsl(r);currentHue=h[0];currentSat=h[1];currentLight=h[2];updateLabels();redrawSat();updateLive()}});
-  apply?.addEventListener('click',e=>{
-    e.preventDefault();e.stopPropagation();
-    const st=getActive();if(!st||st.colorMode!=='palette')return;
-    const i=Math.max(0,Math.min(Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,st.palette.length-1));
-    const p=st.palette[i];if(!p)return;
-    const r=hexToRgb(hexEl.value);if(!r)return;
-    const h=rgbToHsl(r);currentHue=h[0];currentSat=h[1];currentLight=h[2];updateLabels();redrawSat();
-    p.color=rgbToHex(r);
-    st.colorPreviewDraft=null;
-    try{rebuild(st);renderComposition();renderLiveStickerPreview(st);}
-    catch(err){console.error('color apply',err)}
-    const oh=rgbToHex(p.original||[255,255,255]);
-    const hx=p.color;
-    const ow=document.getElementById('stickerOriginalSwatch'),ot=document.getElementById('stickerOriginalText'),cw=document.getElementById('stickerCurrentSwatch'),ct=document.getElementById('stickerCurrentText');
-    if(ow)ow.style.background=oh;if(ot)ot.innerHTML='<small>元の色</small>'+oh;
-    if(cw)cw.style.background=hx;if(ct)ct.innerHTML='<small>選択した色（現在）</small>'+hx;
-    const row=document.querySelectorAll('#stickerPaletteGrid .stickerPaletteItem')[i];
-    if(row){const lab=row.querySelector('.stickerPaletteHex'),btn=row.querySelector('.stickerPaletteColorBtn');if(lab)lab.innerHTML='<b>元</b> '+oh+'<br><b>現在</b> '+hx;if(btn)btn.style.background=hx;}
-  });
-  window.setPickerFromHex=setPickerFromHex;
-  window.openCustomPickerForActive=openCustomPickerForActive;
-})();
-</script>
 
 
 
@@ -2308,160 +2014,14 @@ window.addEventListener('load',()=>setTimeout(()=>{editor.hidden=true;backdrop.h
 
 
 
-<script>
-/* v119: v118の実障害を修正。customPicker未定義によるReferenceErrorでopenColorEditorが途中終了していた。選択スタンプ参照も明示化。 */
-(function(){
-  const b=document.getElementById('stickerColorOpen');
-  if(!b)return;
-  b.disabled=false;
-  b.removeAttribute('disabled');
-  b.hidden=false;
-  b.style.display='block';
-  b.onclick=function(ev){
-    if(ev){ev.preventDefault();ev.stopPropagation();}
-    if(typeof window.openStickerColorEditor==='function'){
-      window.openStickerColorEditor();
-    }
-  };
-  // 選択状態の変化を監視して表示だけ更新（クリック処理には触れない）
-  setInterval(function(){
-    const has=!!window.__tamaSelectedStickerFlag;
-    if(has){b.disabled=false;b.removeAttribute('disabled');b.style.display='block';}
-  },250);
-})();
-</script>
-<script>
-/* v122 final modal guard: legacy layer fixers must never lower the color editor. */
-(function(){
-  const ed=document.getElementById('stickerColorEditor'),bd=document.getElementById('stickerColorBackdrop');
-  function guard(){
-    if(ed){ed.style.setProperty('z-index','1000000','important');ed.style.setProperty('position','fixed','important');ed.style.setProperty('pointer-events','auto','important');}
-    if(bd){bd.style.setProperty('z-index','999990','important');bd.style.setProperty('position','fixed','important');}
-  }
-  guard();
-  window.addEventListener('load',guard);
-  setTimeout(guard,50);setTimeout(guard,300);setTimeout(guard,1000);
-})();
-</script>
-<script>
-/* v124 final: color editor behavior fix.
-   - 33+ color images: HSL slider updates ONLY the fixed mini preview (cheap).
-   - HSL "反映" commits to the actual sticker.
-   - HSL "元に戻す" restores original colors immediately.
-   - Palette custom color keeps live mini preview, and "反映" commits it.
-   - Custom "元に戻す" restores only the selected palette color.
-*/
-(function(){
-  const editor=document.getElementById('stickerColorEditor');
-  if(!editor)return;
-  const hEls={h:[document.getElementById('stickerHue'),document.getElementById('stickerHueVal')],s:[document.getElementById('stickerSat'),document.getElementById('stickerSatVal')],l:[document.getElementById('stickerLight'),document.getElementById('stickerLightVal')]};
-  const hApply=document.getElementById('stickerHslApply');
-  const hReset=document.getElementById('stickerHslReset');
-  const pickerReset=document.getElementById('stickerPickerReset');
-  const pickerApply=document.getElementById('stickerPickerApply');
-  const cpHex=document.getElementById('stickerPickerHex');
-  const getSt=()=>{try{return typeof window.__tamaGetSelectedSticker==='function'?window.__tamaGetSelectedSticker():null}catch(e){return null}};
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
-  const rgbFromHex2=x=>{const m=String(x||'').trim().match(/^#?([0-9a-f]{6})$/i);return m?[parseInt(m[1].slice(0,2),16),parseInt(m[1].slice(2,4),16),parseInt(m[1].slice(4,6),16)]:null};
-  const hex2=(r,g,b)=>'#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('').toUpperCase();
-  function rgbToHsl2(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0,s=0,l=(mx+mn)/2;if(d){s=d/(1-Math.abs(2*l-1));switch(mx){case r:h=((g-b)/d)%6;break;case g:h=(b-r)/d+2;break;default:h=(r-g)/d+4}h*=60;if(h<0)h+=360}return[h,s*100,l*100]}
-  function hslToRgb2(h,s,l){h=((h%360)+360)%360;s=clamp(s,0,100)/100;l=clamp(l,0,100)/100;const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2;let r=0,g=0,b=0;if(h<60)[r,g,b]=[c,x,0];else if(h<120)[r,g,b]=[x,c,0];else if(h<180)[r,g,b]=[0,c,x];else if(h<240)[r,g,b]=[0,x,c];else if(h<300)[r,g,b]=[x,0,c];else[r,g,b]=[c,0,x];return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)]}
-  function updateMiniHsl(st){
-    if(!st)return;
-    const cv=document.getElementById('stickerColorLiveCanvas'); if(!cv)return;
-    const ctx=cv.getContext('2d',{willReadFrequently:true}); if(!ctx)return;
-    const w=cv.width||180,h=cv.height||180;
-    if(!st.colorPreviewBaseData){
-      const src=typeof sourceCanvas==='function'?sourceCanvas(st):null; if(!src)return;
-      const base=document.createElement('canvas');base.width=w;base.height=h;
-      const bx=base.getContext('2d',{willReadFrequently:true});bx.imageSmoothingEnabled=false;
-      const pad=8,scale=Math.min((w-pad*2)/src.width,(h-pad*2)/src.height);
-      const dw=Math.max(1,Math.round(src.width*scale)),dh=Math.max(1,Math.round(src.height*scale));
-      bx.clearRect(0,0,w,h);bx.drawImage(src,Math.round((w-dw)/2),Math.round((h-dh)/2),dw,dh);
-      st.colorPreviewBaseCanvas=base;st.colorPreviewBaseData=bx.getImageData(0,0,w,h);
-    }
-    const out=ctx.createImageData(w,h);out.data.set(st.colorPreviewBaseData.data);const d=out.data;
-    if(st.colorMode==='palette'&&st.palette){
-      const i=Math.max(0,Math.min(Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,st.palette.length-1));
-      const draft=st.colorPreviewDraft&&st.colorPreviewDraft.index===i?st.colorPreviewDraft.hex:null;
-      const map=new Map(st.palette.map((p,j)=>[(p.original[0]<<16)|(p.original[1]<<8)|p.original[2],rgbFromHex2(j===i&&draft?draft:p.color)]));
-      for(let k=0;k<d.length;k+=4){if(d[k+3]===0)continue;const q=map.get((d[k]<<16)|(d[k+1]<<8)|d[k+2]);if(q){d[k]=q[0];d[k+1]=q[1];d[k+2]=q[2]}}
-    }else if(st.colorMode==='hsl'){
-      const q=st.colorPreviewHsl||st.hsl||{h:0,s:0,l:0};
-      for(let k=0;k<d.length;k+=4){if(d[k+3]===0)continue;const z=rgbToHsl2(d[k],d[k+1],d[k+2]);const q2=hslToRgb2(z[0]+q.h,clamp(z[1]+q.s,0,100),clamp(z[2]+q.l,0,100));d[k]=q2[0];d[k+1]=q2[1];d[k+2]=q2[2]}
-    }
-    ctx.clearRect(0,0,w,h);ctx.putImageData(out,0,0);
-  }
-  function setHslControls(q){
-    q=q||{h:0,s:0,l:0};
-    for(const k of ['h','s','l']){if(!hEls[k][0]||!hEls[k][1])continue;const a=k==='h'?-180:-100,b=k==='h'?180:100,v=clamp(q[k],a,b);hEls[k][0].value=v;hEls[k][1].value=v}
-  }
-  function showHslDraft(st){
-    if(!st||st.colorMode!=='hsl')return;
-    const q=st.colorPreviewHsl||{h:0,s:0,l:0};setHslControls(q);updateMiniHsl(st);
-    const mode=document.getElementById('stickerColorMode');if(mode)mode.textContent='HSL編集：33色以上の画像です（画像全体）';
-    const hint=document.getElementById('stickerColorHint');if(hint)hint.textContent='色相・彩度・明度を動かすと上の小窓だけが即時更新されます。「反映」でスタンプ本体に確定します。';
-  }
-  function hslInput(k){
-    const st=getSt();if(!st||st.colorMode!=='hsl')return;
-    const a=k==='h'?-180:-100,b=k==='h'?180:100;
-    const v=clamp(hEls[k][0].value,a,b);hEls[k][0].value=v;hEls[k][1].value=v;
-    st.colorPreviewHsl=st.colorPreviewHsl||{h:0,s:0,l:0};st.colorPreviewHsl[k]=v;
-    updateMiniHsl(st);
-  }
-  for(const k of ['h','s','l']){
-    if(hEls[k][0])hEls[k][0].oninput=()=>hslInput(k);
-    if(hEls[k][1]){hEls[k][1].oninput=()=>{hEls[k][0].value=hEls[k][1].value;hslInput(k)}}
-  }
-  hApply?.addEventListener('click',function(e){
-    e.preventDefault();e.stopPropagation();const st=getSt();if(!st||st.colorMode!=='hsl')return;
-    const q=st.colorPreviewHsl||{h:0,s:0,l:0};st.hsl={h:q.h,s:q.s,l:q.l};st.colorPreviewHsl={...st.hsl};
-    if(typeof rebuild==='function')rebuild(st);if(typeof renderComposition==='function')renderComposition();updateMiniHsl(st);
-    const hint=document.getElementById('stickerColorHint');if(hint)hint.textContent='HSLをスタンプ本体に反映しました。';
-  });
-  hReset?.addEventListener('click',function(e){
-    e.preventDefault();e.stopPropagation();const st=getSt();if(!st||st.colorMode!=='hsl')return;
-    st.hsl={h:0,s:0,l:0};st.colorPreviewHsl={h:0,s:0,l:0};
-    setHslControls(st.hsl);if(typeof rebuild==='function')rebuild(st);if(typeof renderComposition==='function')renderComposition();updateMiniHsl(st);
-    const hint=document.getElementById('stickerColorHint');if(hint)hint.textContent='元のカラーに戻しました。';
-  });
-  pickerReset?.addEventListener('click',function(e){
-    e.preventDefault();e.stopPropagation();const st=getSt();if(!st||st.colorMode!=='palette'||!st.palette?.length)return;
-    const i=Math.max(0,Math.min(Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,st.palette.length-1)),p=st.palette[i];if(!p)return;
-    p.color=hex2(...p.original);st.colorPreviewDraft=null;
-    if(typeof setPickerFromHex==='function')setPickerFromHex(p.color);if(typeof rebuild==='function')rebuild(st);if(typeof renderComposition==='function')renderComposition();
-    if(typeof renderColorPreview==='function')renderColorPreview(st);
-    const hint=document.getElementById('stickerColorHint');if(hint)hint.textContent='選択した色を元のカラーに戻しました。';
-  });
-  // Ensure the custom Apply button always commits the value and refreshes the visible mini preview.
-  pickerApply?.addEventListener('click',function(){
-    setTimeout(()=>{const st=getSt();if(st&&st.colorMode==='palette'){st.colorPreviewDraft=null;updateMiniHsl(st)}},0);
-  });
-  // When editor is opened/re-rendered, preserve the HSL draft if present instead of overwriting it.
-  const oldRenderEditor=window.renderEditor;
-  if(typeof oldRenderEditor==='function'){
-    window.renderEditor=function(){oldRenderEditor();const st=getSt();if(st&&st.colorMode==='hsl'){st.colorPreviewHsl=st.colorPreviewHsl||{...(st.hsl||{h:0,s:0,l:0})};showHslDraft(st)}};
-  }
-  // The function is scoped inside the earlier IIFE, so use a small public hook for select/open flows.
-  window.__tamaRefreshColorMiniPreview=function(){const st=getSt();if(st&&st.colorMode==='hsl'){st.colorPreviewHsl={...(st.hsl||{h:0,s:0,l:0})};showHslDraft(st)}else if(st&&typeof updateMiniHsl==='function')updateMiniHsl(st)};
-  setTimeout(()=>window.__tamaRefreshColorMiniPreview?.(),30);
-})();
-</script>
 
-<script>
-/* v126: restore color button and reorder sticker controls/reference area. */
-(function(){
-  const up=document.getElementById('stickerSizeUp'),down=document.getElementById('stickerSizeDown');
-  if(up) up.textContent='大きくする';
-  if(down) down.textContent='小さくする';
-  // If an editor is reopened for another source image, force a fresh analysis.
-  const btn=document.getElementById('stickerColorOpen');
-  if(btn){btn.addEventListener('click',function(){
-    const st=typeof window.__tamaGetSelectedSticker==='function'?window.__tamaGetSelectedSticker():null;
-    if(st){ try{window.openStickerColorEditor?.()}catch(e){console.error(e)}}
-  },true);}
-})();
-</script>
+
+
+
+
+
+
+
 
 <style id="v127-final-fixes">
 /* v127: hide status text under ③ and make folder icons smaller */
@@ -2476,288 +2036,7 @@ window.addEventListener('load',()=>setTimeout(()=>{editor.hidden=true;backdrop.h
 /* HSL picker: true HSL-style square — white at top, hue at middle, black at bottom. */
 #stickerSatCanvas{touch-action:none!important;cursor:crosshair!important}
 </style>
-<script>
-/* v127: final color-editor stabilization.
-   1) Never reuse the previous sticker's color-editor state when switching stickers.
-   2) The custom picker uses a true HSL lightness field and rAF-throttled updates.
-   3) 33+ color HSL edits are previewed in the fixed mini window and committed only by 反映.
-*/
-(function(){
-  const openBtn=document.getElementById('stickerColorOpen');
-  const editor=document.getElementById('stickerColorEditor');
-  const grid=document.getElementById('stickerPaletteGrid');
-  const paletteHsl=document.getElementById('stickerPaletteHsl');
-  const hslBox=document.getElementById('stickerHslEditor');
-  const cp=document.getElementById('stickerCustomPicker');
-  let sat=document.getElementById('stickerSatCanvas');
-  const hue=document.getElementById('stickerPickerHue');
-  const light=document.getElementById('stickerPickerLight');
-  const hexEl=document.getElementById('stickerPickerHex');
-  const hueVal=document.getElementById('stickerPickerHueVal');
-  const lightVal=document.getElementById('stickerPickerLightVal');
-  const live=document.getElementById('stickerColorLiveCanvas');
-  if(!editor||!openBtn)return;
-  /* Detach the legacy picker listeners so dragging is handled by this lightweight picker only. */
-  if(sat){ const fresh=sat.cloneNode(true); sat.replaceWith(fresh); sat=fresh; }
 
-  const getSt=()=>{try{return window.__tamaGetSelectedSticker?.()||null}catch(e){return null}};
-  let editorSticker=null;
-  let raf=0;
-  let pickerHue=0,pickerSat=100,pickerLight=50;
-
-  function clamp(v,a,b){v=Number(v);return Number.isFinite(v)?Math.max(a,Math.min(b,v)):a}
-  function hex2(r,g,b){return '#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('').toUpperCase()}
-  function rgbFromHex(v){
-    const m=String(v||'').trim().match(/^#?([0-9a-f]{6})$/i);
-    return m?[parseInt(m[1].slice(0,2),16),parseInt(m[1].slice(2,4),16),parseInt(m[1].slice(4,6),16)]:null;
-  }
-  function rgbToHsl(r,g,b){
-    r/=255;g/=255;b/=255;
-    const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
-    let h=0,s=0,l=(mx+mn)/2;
-    if(d){
-      s=d/(1-Math.abs(2*l-1));
-      switch(mx){
-        case r:h=((g-b)/d)%6;break;
-        case g:h=(b-r)/d+2;break;
-        default:h=(r-g)/d+4;
-      }
-      h*=60;if(h<0)h+=360;
-    }
-    return [h,s*100,l*100];
-  }
-  function hslToRgb(h,s,l){
-    h=((h%360)+360)%360;s=clamp(s,0,100)/100;l=clamp(l,0,100)/100;
-    const c=(1-Math.abs(2*l-1))*s;
-    const x=c*(1-Math.abs((h/60)%2-1));
-    const m=l-c/2;
-    let r=0,g=0,b=0;
-    if(h<60)[r,g,b]=[c,x,0];
-    else if(h<120)[r,g,b]=[x,c,0];
-    else if(h<180)[r,g,b]=[0,c,x];
-    else if(h<240)[r,g,b]=[0,x,c];
-    else if(h<300)[r,g,b]=[x,0,c];
-    else[r,g,b]=[c,0,x];
-    return [Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];
-  }
-
-  function resetStickerColorState(st){
-    if(!st)return;
-    /* v133: NEVER destroy committed per-sticker color state here.
-       This function is called from the document pointerdown handler, so it can
-       run simply by moving an already-colored sticker. The previous version
-       cleared colorWorkCanvas/palette/hsl, which made the sticker snap back to
-       its original colors on the next renderComposition().
-       Keep the actual color state; only reset transient picker/editor UI state. */
-    if(typeof st.colorReady!=='boolean') st.colorReady=false;
-    if(!st.colorReady){
-      st.colorSourceSig=st.colorSourceSig||null;
-      st.colorMode=st.colorMode||null;
-      st.palette=st.palette||[];
-      st.hsl=st.hsl||{h:0,s:0,l:0};
-      st.paletteHsl=st.paletteHsl||{h:0,s:0,l:0};
-      st.activePaletteIndex=Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0;
-      st.excludeIndex=Number.isInteger(st.excludeIndex)?st.excludeIndex:null;
-      st.protectOutline=st.protectOutline!==false;
-    }
-    st.colorPreviewHsl=null;
-    st.colorPreviewDraft=null;
-    /* colorPreviewBase* is editor preview cache and can safely be rebuilt.
-       colorWorkCanvas is NOT cleared: it is the committed rendered source. */
-    st.colorPreviewBaseCanvas=null;
-    st.colorPreviewBaseData=null;
-  }
-
-  function prepareForSticker(st){
-    if(editorSticker===st)return;
-    editorSticker=st||null;
-    /* Remove every DOM/state remnant from the previous sticker before the
-       existing editor code runs. */
-    if(grid){grid.innerHTML='';grid.hidden=true}
-    if(paletteHsl){paletteHsl.hidden=true}
-    if(hslBox){hslBox.hidden=true}
-    if(cp){cp.hidden=true}
-    if(st){
-      resetStickerColorState(st);
-      st.colorPreviewDraft=null;
-      st.colorPreviewHsl=null;
-    }
-    if(hue){hue.value=0}
-    if(light){light.value=50}
-    if(hueVal)hueVal.value='0°';
-    if(lightVal)lightVal.value='50%';
-    if(hexEl)hexEl.value='#000000';
-    cancelAnimationFrame(raf);raf=0;
-  }
-
-  /* Capture runs before all older click handlers. */
-  openBtn.addEventListener('click',function(){
-    const st=getSt();
-    prepareForSticker(st);
-  },true);
-
-  /*
-   * Fix the hidden attribute being overridden by .stickerPaletteGrid{display:grid}.
-   * Also clear stale rows immediately whenever the editor changes mode.
-   */
-  const observer=new MutationObserver(()=>{
-    if(grid&&grid.hidden)grid.style.setProperty('display','none','important');
-    else if(grid)grid.style.removeProperty('display');
-  });
-  if(grid)observer.observe(grid,{attributes:true,attributeFilter:['hidden','style']});
-
-  /* Replace the old picker drawing/interaction with a light HSL field. */
-  if(!sat||!hue||!light||!hexEl)return;
-
-  function drawPicker(){
-    const c=sat.getContext('2d'); if(!c)return;
-    const w=sat.width,h=sat.height;
-    c.clearRect(0,0,w,h);
-
-    /* Base: white -> pure hue horizontally. */
-    const xg=c.createLinearGradient(0,0,w,0);
-    xg.addColorStop(0,'#fff');
-    xg.addColorStop(1,'hsl('+pickerHue+' 100% 50%)');
-    c.fillStyle=xg;c.fillRect(0,0,w,h);
-
-    /* HSL lightness:
-       top = white, middle = base hue, bottom = black.
-       The transparent stops make saturation remain controllable horizontally. */
-    const yg=c.createLinearGradient(0,0,0,h);
-    yg.addColorStop(0,'rgba(255,255,255,1)');
-    yg.addColorStop(.5,'rgba(255,255,255,0)');
-    yg.addColorStop(1,'rgba(0,0,0,1)');
-    c.fillStyle=yg;c.fillRect(0,0,w,h);
-
-    const px=pickerSat/100*w;
-    const py=(1-pickerLight/100)*h;
-    c.beginPath();c.arc(px,py,8,0,Math.PI*2);
-    c.strokeStyle='#fff';c.lineWidth=3;c.stroke();
-    c.beginPath();c.arc(px,py,10,0,Math.PI*2);
-    c.strokeStyle='#111';c.lineWidth=1;c.stroke();
-  }
-
-  function setPickerValues(h,s,l,updateHex=true){
-    pickerHue=((Number(h)||0)%360+360)%360;
-    pickerSat=clamp(s,0,100);
-    pickerLight=clamp(l,0,100);
-    if(hue)hue.value=Math.round(pickerHue);
-    if(light)light.value=Math.round(pickerLight);
-    if(hueVal)hueVal.value=Math.round(pickerHue)+'°';
-    if(lightVal)lightVal.value=Math.round(pickerLight)+'%';
-    if(updateHex&&hexEl)hexEl.value=hex2(...hslToRgb(pickerHue,pickerSat,pickerLight));
-    drawPicker();
-  }
-
-  function updateMiniOnly(){
-    const st=getSt();
-    if(!st||st.colorMode!=='palette'||!st.palette?.length)return;
-    const i=Math.max(0,Math.min(Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,st.palette.length-1));
-    const p=st.palette[i]; if(!p)return;
-    const hx=hex2(...hslToRgb(pickerHue,pickerSat,pickerLight));
-    st.colorPreviewDraft={index:i,hex:hx};
-
-    /* Use the existing lightweight mini-preview hook only. */
-    try{window.__tamaRefreshColorMiniPreview?.()}catch(e){}
-    const os=document.getElementById('stickerOriginalSwatch');
-    const ot=document.getElementById('stickerOriginalText');
-    const cs=document.getElementById('stickerCurrentSwatch');
-    const ct=document.getElementById('stickerCurrentText');
-    const oh=hex2(...(p.original||[255,255,255]));
-    if(os)os.style.background=oh;
-    if(ot)ot.innerHTML='<small>元の色</small>'+oh;
-    if(cs)cs.style.background=hx;
-    if(ct)ct.innerHTML='<small>選択した色（現在）</small>'+hx;
-    if(hexEl)hexEl.value=hx;
-  }
-
-  function scheduleMini(){
-    if(raf)return;
-    raf=requestAnimationFrame(()=>{raf=0;updateMiniOnly()});
-  }
-
-  function pointerPick(ev){
-    const r=sat.getBoundingClientRect();
-    const x=clamp((ev.clientX-r.left)/r.width,0,1);
-    const y=clamp((ev.clientY-r.top)/r.height,0,1);
-    pickerSat=x*100;
-    pickerLight=(1-y)*100;
-    drawPicker();
-    scheduleMini();
-  }
-  sat.addEventListener('pointerdown',e=>{
-    e.preventDefault();e.stopPropagation();
-    sat.setPointerCapture?.(e.pointerId);
-    pointerPick(e);
-  });
-  sat.addEventListener('pointermove',e=>{
-    if(e.buttons)pointerPick(e);
-  });
-
-  hue.addEventListener('input',e=>{
-    e.stopPropagation();
-    pickerHue=Number(hue.value)||0;
-    if(hueVal)hueVal.value=Math.round(pickerHue)+'°';
-    drawPicker();scheduleMini();
-  },true);
-  light.addEventListener('input',e=>{
-    e.stopPropagation();
-    pickerLight=Number(light.value)||0;
-    if(lightVal)lightVal.value=Math.round(pickerLight)+'%';
-    drawPicker();scheduleMini();
-  },true);
-
-  hexEl.addEventListener('input',e=>{
-    e.stopPropagation();
-    const rgb=rgbFromHex(hexEl.value);
-    if(!rgb)return;
-    const q=rgbToHsl(...rgb);
-    setPickerValues(q[0],q[1],q[2],true);
-    scheduleMini();
-  },true);
-
-  /* Keep the picker aligned with the committed palette color when opened. */
-  const syncPicker=()=>{
-    const st=getSt();
-    if(!st||st.colorMode!=='palette'||!st.palette?.length)return;
-    const i=Math.max(0,Math.min(Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,st.palette.length-1));
-    const p=st.palette[i];
-    if(p?.color){
-      const rgb=rgbFromHex(p.color);
-      if(rgb){
-        const q=rgbToHsl(...rgb);
-        setPickerValues(q[0],q[1],q[2],true);
-      }
-    }
-  };
-
-  /* The existing color button opens the picker asynchronously. Sync after it has
-     finished rendering, without rebuilding the editor on every drag. */
-  openBtn.addEventListener('click',()=>setTimeout(syncPicker,0),false);
-
-  /* Ensure the HSL 33+ preview starts from the new sticker, not the previous one. */
-  const oldMini=window.__tamaRefreshColorMiniPreview;
-  window.__tamaRefreshColorMiniPreview=function(){
-    const st=getSt();
-    if(st&&st!==editorSticker){
-      prepareForSticker(st);
-    }
-    try{return oldMini?.()}catch(e){}
-  };
-
-  /* Final safety: clicking another sticker must invalidate the next editor session. */
-  document.addEventListener('pointerdown',e=>{
-    const item=e.target.closest?.('.stickerItem');
-    if(!item)return;
-    setTimeout(()=>{
-      const st=getSt();
-      if(st&&st!==editorSticker){
-        prepareForSticker(st);
-      }
-    },0);
-  },true);
-})();
-</script>
 
 
 <style id="v128-final-ui">
@@ -2774,106 +2053,8 @@ window.addEventListener('load',()=>setTimeout(()=>{editor.hidden=true;backdrop.h
 /* v130: hide the remaining helper/status text under ③スタンプ. */
 #stickerFolderStatus,#stickerStatus{display:none!important}
 </style>
-<script>
-/* v130: color commit is authoritative and uses the immutable per-sticker source.
-   The editor preview is a draft, while this commit path explicitly writes the
-   processed canvas to both the DOM sticker image and the export source.
-   It also waits for the DOM image to finish loading before refreshing the UI,
-   preventing the old image from remaining visible after 33+ HSL edits.
-*/
-(function(){
-  const applyH=document.getElementById('stickerHslApply');
-  const applyP=document.getElementById('stickerPickerApply');
-  const get=()=>window.__tamaGetSelectedSticker?.()||null;
-  let commitToken=0;
 
-  function forceStickerCommit(st){
-    if(!st)return;
-    const token=++commitToken;
-    try{
-      if(typeof window.__tamaRebuildSticker==='function') window.__tamaRebuildSticker(st);
-      const dom=st.el?.querySelector('img');
-      if(dom && st.colorWorkCanvas){
-        const data=st.colorWorkCanvas.toDataURL('image/png');
-        dom.onload=()=>{
-          if(token!==commitToken)return;
-          updateStickerElement(st);
-          renderComposition();
-        };
-        dom.src=data;
-        // Cached/data URLs may not fire load synchronously on every browser.
-        requestAnimationFrame(()=>{
-          if(token!==commitToken)return;
-          updateStickerElement(st);
-          renderComposition();
-        });
-      }else{
-        updateStickerElement(st);
-        renderComposition();
-      }
-    }catch(e){console.error('v129 color commit',e)}
-  }
 
-  // Capture phase: make the real sticker update independent of the legacy
-  // editor listeners and their ordering.
-  applyH?.addEventListener('click',()=>{
-    const st=get();
-    if(st?.colorMode==='hsl'){
-      const q=st.colorPreviewHsl||{h:0,s:0,l:0};
-      st.hsl={h:Number(q.h)||0,s:Number(q.s)||0,l:Number(q.l)||0};
-      st.colorPreviewHsl={...st.hsl};
-      forceStickerCommit(st);
-    }
-  },true);
-
-  applyP?.addEventListener('click',()=>{
-    const st=get();
-    if(st?.colorMode==='palette') forceStickerCommit(st);
-  },true);
-})();
-</script>
-<script>
-/* v131: authoritative color-editor bridge.
-   The actual rebuild() lives inside the v113 color-editor IIFE, so later scripts
-   must use the public bridge instead of testing for a non-global rebuild().
-   33+ HSL is committed live, so closing/reopening the editor is never required.
-*/
-(function(){
-  const get=()=>window.__tamaGetSelectedSticker?.()||null;
-  const hIds={h:['stickerHue','stickerHueVal'],s:['stickerSat','stickerSatVal'],l:['stickerLight','stickerLightVal']};
-  const clamp=(v,a,b)=>{v=Number(v);return Number.isFinite(v)?Math.max(a,Math.min(b,v)):0};
-  function commit(st){
-    if(!st)return;
-    if(typeof window.__tamaRebuildSticker==='function') window.__tamaRebuildSticker(st);
-    const img=st.el?.querySelector('img');
-    if(img) img.style.transform=`scale(${st.flipX?-1:1},${st.flipY?-1:1})`;
-    if(typeof updateStickerElement==='function') updateStickerElement(st);
-    if(typeof renderComposition==='function') renderComposition();
-  }
-  function liveHsl(k){
-    const st=get(); if(!st||st.colorMode!=='hsl')return;
-    const r=document.getElementById(hIds[k][0]), n=document.getElementById(hIds[k][1]);
-    if(!r||!n)return;
-    const a=k==='h'?-180:-100,b=k==='h'?180:100,v=clamp(r.value,a,b);
-    r.value=v;n.value=v;
-    st.hsl=st.hsl||{h:0,s:0,l:0};st.hsl[k]=v;
-    st.colorPreviewHsl={...st.hsl};
-    commit(st);
-    const hint=document.getElementById('stickerColorHint');
-    if(hint)hint.textContent='HSLをスタンプ本体に即時反映しました。';
-  }
-  for(const k of ['h','s','l']){
-    const r=document.getElementById(hIds[k][0]),n=document.getElementById(hIds[k][1]);
-    if(r)r.addEventListener('input',()=>liveHsl(k),true);
-    if(n)n.addEventListener('input',()=>{if(r)r.value=n.value;liveHsl(k)},true);
-  }
-  const hApply=document.getElementById('stickerHslApply');
-  if(hApply)hApply.addEventListener('click',()=>{const st=get();if(st?.colorMode==='hsl'){commit(st);}},true);
-  const pApply=document.getElementById('stickerPickerApply');
-  if(pApply)pApply.addEventListener('click',()=>{const st=get();if(st?.colorMode==='palette'){const i=Math.max(0,Math.min(Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,st.palette.length-1));const d=st.colorPreviewDraft;if(d&&d.index===i&&st.palette[i])st.palette[i].color=d.hex;commit(st);st.colorPreviewDraft=null;}},true);
-  window.__tamaCommitStickerColor=commit;
-})();
-</script>
 
 <style id="v133-final-fix-ui">
 /* v133: restore the 32-color outline-protection control. */
@@ -2911,169 +2092,15 @@ window.addEventListener('load',()=>setTimeout(()=>{editor.hidden=true;backdrop.h
 }
 #stickerColorEditor #stickerColorDecision:active{filter:brightness(.92)}
 </style>
-<script>
-/* v136: do not stack another color-editor implementation. This final layer
-   owns only the requested UI/state synchronization and uses the existing
-   scoped rebuild/commit bridges. */
-(function(){
-  const editor=document.getElementById('stickerColorEditor');
-  if(!editor)return;
-  const grid=document.getElementById('stickerPaletteGrid');
-  const hint=document.getElementById('stickerColorHint');
-  const hReset=document.getElementById('stickerHslReset');
-  const pickerReset=document.getElementById('stickerPickerReset');
-  const pickerApply=document.getElementById('stickerPickerApply');
-  const colorReset=document.getElementById('stickerColorReset');
-  const protect=document.getElementById('stickerProtectOutline');
-  const get=()=>window.__tamaGetSelectedSticker?.()||null;
-  const commit=st=>{
-    if(!st)return;
-    try{
-      if(typeof window.__tamaRebuildSticker==='function')window.__tamaRebuildSticker(st);
-      else if(typeof rebuild==='function')rebuild(st);
-      if(typeof updateStickerElement==='function')updateStickerElement(st);
-      if(typeof renderComposition==='function')renderComposition();
-    }catch(e){console.error('v136 color commit',e)}
-  };
 
-  /* Add the requested final decision button exactly once. */
-  if(colorReset&&!document.getElementById('stickerColorDecision')){
-    const b=document.createElement('button');
-    b.type='button';
-    b.id='stickerColorDecision';
-    b.textContent='決定する';
-    colorReset.insertAdjacentElement('afterend',b);
-    b.addEventListener('click',function(e){
-      e.preventDefault();e.stopImmediatePropagation();
-      const st=get();
-      /* A pending picker draft is a real color choice: commit it before closing. */
-      if(st?.colorMode==='palette'&&st.colorPreviewDraft){
-        const i=Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0;
-        const d=st.colorPreviewDraft;
-        if(d.index===i&&st.palette?.[i])st.palette[i].color=d.hex;
-        st.colorPreviewDraft=null;
-        commit(st);
-      }
-      window.closeStickerColorEditor?.();
-    },true);
-  }
 
-  function syncActive(){
-    const st=get();
-    if(!st||st.colorMode!=='palette'||!grid)return;
-    const i=Math.max(0,Math.min(Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,(st.palette?.length||1)-1));
-    st.activePaletteIndex=i;
-    grid.querySelectorAll('.stickerPaletteItem').forEach((row,j)=>{
-      row.classList.toggle('activePalette',j===i);
-    });
-    const p=st.palette?.[i];
-    if(!p)return;
-    const os=document.getElementById('stickerOriginalSwatch');
-    const cs=document.getElementById('stickerCurrentSwatch');
-    const ot=document.getElementById('stickerOriginalText');
-    const ct=document.getElementById('stickerCurrentText');
-    const hx=String(p.color||'').toUpperCase();
-    const oh='#'+[p.original[0],p.original[1],p.original[2]].map(v=>Number(v).toString(16).padStart(2,'0')).join('').toUpperCase();
-    if(os)os.style.background=oh;
-    if(cs)cs.style.background=hx;
-    if(ot)ot.innerHTML='<small>元の色</small>'+oh;
-    if(ct)ct.innerHTML='<small>選択した色（現在）</small>'+hx;
-  }
-
-  /* Existing row handlers may rebuild the grid. Always resynchronize the
-     highlight after their event queue has finished. */
-  function scheduleSync(){requestAnimationFrame(()=>requestAnimationFrame(syncActive));}
-  grid?.addEventListener('pointerdown',e=>{
-    const row=e.target.closest?.('.stickerPaletteItem');
-    if(!row)return;
-    const rows=[...grid.querySelectorAll('.stickerPaletteItem')];
-    const i=rows.indexOf(row);
-    if(i<0)return;
-    /* A lock checkbox is not a palette selection. */
-    if(e.target.closest?.('.stickerPaletteLock')){
-      scheduleSync();
-      return;
-    }
-    const st=get();
-    if(st?.colorMode==='palette')st.activePaletteIndex=i;
-    scheduleSync();
-  },true);
-  grid?.addEventListener('click',e=>{
-    const row=e.target.closest?.('.stickerPaletteItem');
-    if(!row)return;
-    const rows=[...grid.querySelectorAll('.stickerPaletteItem')];
-    const i=rows.indexOf(row);
-    if(i<0)return;
-    if(e.target.closest?.('.stickerPaletteLock')){scheduleSync();return;}
-    const st=get();
-    if(st?.colorMode==='palette')st.activePaletteIndex=i;
-    scheduleSync();
-  },true);
-
-  /* Rename the per-color switch everywhere it appears. */
-  function renameLocks(){
-    editor.querySelectorAll('.stickerPaletteLock span').forEach(x=>{
-      if(x.textContent==='変更ロック')x.textContent='HSLロック';
-    });
-  }
-  renameLocks();
-  new MutationObserver(renameLocks).observe(editor,{subtree:true,childList:true});
-
-  /* Remove only the obsolete explanatory sentence, while retaining useful
-     operation/status messages elsewhere in the hint area. */
-  const obsolete='色をタップするとカラーピッカーが開きます。HSLはパレット内の全色に適用されます。';
-  function cleanHint(){
-    if(hint&&hint.textContent.trim()===obsolete)hint.textContent='';
-  }
-  cleanHint();
-  if(hint)new MutationObserver(cleanHint).observe(hint,{subtree:true,childList:true,characterData:true});
-
-  /* Immediate HSL reset: stop all older competing listeners. */
-  hReset?.addEventListener('click',function(e){
-    e.preventDefault();e.stopImmediatePropagation();
-    const st=get();
-    if(!st||st.colorMode!=='hsl')return;
-    st.hsl={h:0,s:0,l:0};
-    st.colorPreviewHsl={h:0,s:0,l:0};
-    commit(st);
-    try{window.__tamaRefreshColorMiniPreview?.()}catch(_){ }
-  },true);
-
-  /* Immediate selected-color reset for the custom picker. */
-  pickerReset?.addEventListener('click',function(e){
-    e.preventDefault();e.stopImmediatePropagation();
-    const st=get();
-    if(!st||st.colorMode!=='palette'||!st.palette?.length)return;
-    const i=Math.max(0,Math.min(Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,st.palette.length-1));
-    const p=st.palette[i];
-    if(!p)return;
-    p.color='#'+p.original.map(v=>Number(v).toString(16).padStart(2,'0')).join('').toUpperCase();
-    st.colorPreviewDraft=null;
-    commit(st);
-    syncActive();
-    try{window.__tamaRenderStickerEditor?.()}catch(_){ }
-    requestAnimationFrame(syncActive);
-  },true);
-
-  /* Picker Apply: commit the currently selected draft once, then clear the
-     transient draft so later movement/rendering cannot resurrect an old value. */
-  pickerApply?.addEventListener('click',function(e){
-    e.preventDefault();e.stopImmediatePropagation();
-    const st=get();
-    if(!st||st.colorMode!=='palette')return;
-    const i=Math.max(0,Math.min(Number.isInteger(st.activePaletteIndex)?st.activePaletteIndex:0,st.palette.length-1));
-    const d=st.colorPreviewDraft;
-    if(d&&d.index===i&&st.palette?.[i])st.palette[i].color=d.hex;
-    st.colorPreviewDraft=null;
-    commit(st);
-    syncActive();
-  },true);
-
-  /* Keep the visible row selection correct after any editor redraw. */
-  new MutationObserver(scheduleSync).observe(grid||editor,{subtree:true,childList:true});
-  scheduleSync();
-})();
-</script>
+<style id="v140-picker-fill-fix">
+#stickerCustomPickerToggle{display:block!important;width:100%;box-sizing:border-box;margin:8px 0;padding:11px 12px;border:0;border-radius:10px;background:#19376a;color:#fff;font-size:14px;font-weight:900}
+#stickerCustomPickerToggle.active{background:#1685e5}
+.tamaFillColorButton{cursor:pointer}
+.tamaFillTargetSwatch{flex:0 0 auto}
+</style>
+<!-- v139: fill-color picker + iPad performance fixes -->
 </body></html>
 
 <style id="v135-palette-locks">
@@ -3085,13 +2112,292 @@ window.addEventListener('load',()=>setTimeout(()=>{editor.hidden=true;backdrop.h
 #stickerPaletteGrid .stickerPaletteItem.locked .stickerPaletteLock span::before{content:'🔒 ';}
 @media(max-width:600px){#stickerPaletteGrid .stickerPaletteItem{grid-template-columns:34px minmax(0,1fr) 78px 68px!important;}#stickerPaletteGrid .stickerPaletteLock{font-size:9px;gap:2px;}#stickerPaletteGrid .stickerPaletteLock input{width:16px;height:16px;}}
 </style>
+
+
+<style id="v138-unified-color-editor">
+/* v138: unified color-editor state/controller. 32-color fill mode + iPad/desktop sizing. */
+#stickerColorEditor{
+  width:min(760px,calc(100vw - 20px))!important;
+  max-width:760px!important;
+  max-height:min(90vh,920px)!important;
+  padding:16px!important;
+}
+#stickerColorEditor .stickerPaletteGrid{
+  max-height:min(34vh,360px)!important;
+}
+#stickerColorEditor .stickerPaletteItem{
+  grid-template-columns:38px minmax(0,1fr) 88px 76px!important;
+}
+#stickerColorEditor .stickerPaletteLock{
+  display:flex!important;align-items:center;justify-content:center;gap:4px;
+  min-width:0;font-size:11px;font-weight:900;white-space:nowrap;cursor:pointer;
+}
+#stickerColorEditor .stickerPaletteLock input{
+  width:18px;height:18px;margin:0;accent-color:#1685e5;flex:0 0 auto;
+}
+#stickerColorEditor .stickerPaletteItem.locked .stickerPaletteLock{color:#1685e5}
+#stickerColorEditor .stickerPaletteItem.locked .stickerPaletteLock span::before{content:'🔒 '}
+#stickerColorEditor .stickerPaletteItem.activePalette{
+  outline:2px solid #1685e5!important;border-color:#1685e5!important;
+}
+#stickerColorEditor .stickerPaletteItem:not(.activePalette){outline:none!important}
+#stickerColorEditor #stickerColorDecision,
+#stickerColorEditor #stickerFillModeButton{
+  width:100%;box-sizing:border-box;margin-top:8px;padding:11px 12px;border:0;border-radius:10px;
+  color:#fff;font-size:14px;font-weight:900;
+}
+#stickerColorEditor #stickerColorDecision{background:#1685e5}
+#stickerColorEditor #stickerFillModeButton{background:#19376a}
+#stickerColorEditor #stickerFillModeButton.active{background:#1685e5}
+.tamaFillPanel{margin:10px 0;padding:10px;border:1px solid #cbd9e8;border-radius:12px;background:#fff}
+.tamaFillPanel[hidden]{display:none!important}
+.tamaFillTitle{font-size:14px;font-weight:900;color:#19376a;margin-bottom:5px}
+.tamaFillTarget{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;font-weight:800;margin-bottom:8px}.tamaFillColorButton{margin-left:auto;padding:7px 9px;border:1px solid #b9c9dc;border-radius:8px;background:#19376a;color:#fff;font-size:11px;font-weight:900;white-space:nowrap}
+.tamaFillTargetSwatch{width:32px;height:28px;border-radius:7px;border:1px solid #aab8c8;box-shadow:inset 0 0 0 1px #fff}
+.tamaFillCanvasWrap{
+  width:100%;min-height:300px;display:flex;align-items:center;justify-content:center;overflow:auto;
+  border:1px solid #d7e1ec;border-radius:10px;
+  background:repeating-conic-gradient(#f1f4f8 0 25%,#fff 0 50%) 50%/18px 18px;
+  touch-action:none;
+}
+.tamaFillCanvasWrap canvas{
+  display:block;max-width:100%;max-height:62vh;width:auto;height:auto;image-rendering:pixelated;touch-action:none;cursor:crosshair;
+}
+.tamaFillHint{font-size:11px;color:#68758a;line-height:1.4;margin-top:7px}
+@media (min-width:601px){
+  #stickerColorEditor .stickerColorLivePreview{grid-template-columns:260px minmax(0,1fr)}
+  #stickerColorEditor .stickerColorLiveCanvasWrap{width:260px;height:260px}
+  #stickerColorEditor .stickerColorLiveCanvasWrap canvas{width:260px;height:260px}
+  #stickerColorEditor .stickerPaletteGrid{max-height:300px!important}
+  .tamaFillCanvasWrap{min-height:440px}
+}
+@media (max-width:600px){
+  #stickerColorEditor{width:calc(100vw - 12px)!important;max-height:92vh!important;padding:12px!important}
+  #stickerColorEditor .stickerPaletteItem{grid-template-columns:34px minmax(0,1fr) 74px 66px!important}
+  #stickerColorEditor .stickerPaletteLock{font-size:9px;gap:2px}
+  #stickerColorEditor .stickerPaletteLock input{width:16px;height:16px}
+  .tamaFillCanvasWrap{min-height:280px}
+}
+</style>
 <script>
-/* v135: keep per-color lock state through every HSL pass and palette rebuild. */
+/* v138: ONE authoritative color-editor controller.
+   The old v113-v136 color listeners are intentionally removed. All palette/HSL/
+   picker/fill state now lives on the sticker object and rebuilds from one immutable
+   source canvas, so moving/reselecting a sticker cannot resurrect its original color.
+*/
 (function(){
-  const get=()=>window.__tamaGetSelectedSticker?.();
-  const applyLockState=()=>{const st=get();if(!st||st.colorMode!=='palette')return;document.querySelectorAll('#stickerPaletteGrid .stickerPaletteItem').forEach((row,i)=>{const p=st.palette?.[i];const cb=row.querySelector('.stickerPaletteLock input');if(!p||!cb)return;cb.checked=!!p.locked;row.classList.toggle('locked',!!p.locked);});};
-  const old=window.__tamaRenderStickerEditor;
-  if(old)window.__tamaRenderStickerEditor=function(){old();applyLockState();};
-  window.__tamaApplyPaletteLocks=applyLockState;
+  'use strict';
+  const editor=document.getElementById('stickerColorEditor');
+  if(!editor)return;
+  const backdrop=document.getElementById('stickerColorBackdrop');
+  const openBtn=document.getElementById('stickerColorOpen');
+  const closeBtn=document.getElementById('stickerColorClose');
+  const modeEl=document.getElementById('stickerColorMode');
+  const liveCanvas=document.getElementById('stickerColorLiveCanvas');
+  const liveWrap=liveCanvas?.parentElement;
+  const grid=document.getElementById('stickerPaletteGrid');
+  const hslBox=document.getElementById('stickerHslEditor');
+  const paletteHsl=document.getElementById('stickerPaletteHsl');
+  const customPicker=document.getElementById('stickerCustomPicker');
+  const hint=document.getElementById('stickerColorHint');
+  const originalSwatch=document.getElementById('stickerOriginalSwatch');
+  const currentSwatch=document.getElementById('stickerCurrentSwatch');
+  const originalText=document.getElementById('stickerOriginalText');
+  const currentText=document.getElementById('stickerCurrentText');
+  const colorReset=document.getElementById('stickerColorReset');
+  const copyBtn=document.getElementById('stickerPaletteCopy');
+  const pasteBtn=document.getElementById('stickerPalettePaste');
+  const outlineProtect=document.getElementById('stickerProtectOutline');
+  const hslApply=document.getElementById('stickerHslApply');
+  const hslReset=document.getElementById('stickerHslReset');
+  const pickerCanvas=document.getElementById('stickerSatCanvas');
+  const pickerHue=document.getElementById('stickerPickerHue');
+  const pickerHueVal=document.getElementById('stickerPickerHueVal');
+  const pickerLight=document.getElementById('stickerPickerLight');
+  const pickerLightVal=document.getElementById('stickerPickerLightVal');
+  const pickerHex=document.getElementById('stickerPickerHex');
+  const pickerApply=document.getElementById('stickerPickerApply');
+  const pickerReset=document.getElementById('stickerPickerReset');
+  const paletteH={h:document.getElementById('stickerPaletteHue'),s:document.getElementById('stickerPaletteSat'),l:document.getElementById('stickerPaletteLight')};
+  const paletteHN={h:document.getElementById('stickerPaletteHueVal'),s:document.getElementById('stickerPaletteSatVal'),l:document.getElementById('stickerPaletteLightVal')};
+  const hsl={h:document.getElementById('stickerHue'),s:document.getElementById('stickerSat'),l:document.getElementById('stickerLight')};
+  const hslN={h:document.getElementById('stickerHueVal'),s:document.getElementById('stickerSatVal'),l:document.getElementById('stickerLightVal')};
+  const get=()=>window.__tamaGetSelectedSticker?.()||window.selectedSticker||null;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
+  const rgbToHex=(r,g,b)=>'#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('').toUpperCase();
+  const hexToRgb=v=>{const m=String(v||'').trim().replace(/^#/,'');if(!/^[0-9a-f]{6}$/i.test(m))return null;return[parseInt(m.slice(0,2),16),parseInt(m.slice(2,4),16),parseInt(m.slice(4,6),16)]};
+  const rgbToHsl=(r,g,b)=>{r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0,s=0,l=(mx+mn)/2;if(d){s=d/(1-Math.abs(2*l-1));if(mx===r)h=60*(((g-b)/d)%6);else if(mx===g)h=60*((b-r)/d+2);else h=60*((r-g)/d+4);if(h<0)h+=360}return[h,s*100,l*100]};
+  const hslToRgb=(h,s,l)=>{h=((h%360)+360)%360;s=clamp(s,0,100)/100;l=clamp(l,0,100)/100;const c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2;let r=0,g=0,b=0;if(h<60){r=c;g=x}else if(h<120){r=x;g=c}else if(h<180){g=c;b=x}else if(h<240){g=x;b=c}else if(h<300){r=x;b=c}else{r=c;b=x}return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)]};
+  const lum=p=>.2126*p[0]+.7152*p[1]+.0722*p[2];
+  function baseCanvas(st){
+    if(st.colorBaseCanvas?.width&&st.colorBaseCanvas?.height)return st.colorBaseCanvas;
+    const im=st?.img;if(!im?.naturalWidth||!im?.naturalHeight)return null;
+    const sc=Math.min(1,1024/Math.max(im.naturalWidth,im.naturalHeight));
+    const c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.naturalWidth*sc));c.height=Math.max(1,Math.round(im.naturalHeight*sc));
+    const x=c.getContext('2d',{willReadFrequently:true});x.imageSmoothingEnabled=false;x.drawImage(im,0,0,c.width,c.height);
+    st.colorBaseCanvas=c;st.colorBaseSig=c.width+'x'+c.height;return c;
+  }
+  function analyze(st){
+    const src=baseCanvas(st);if(!src)return false;
+    const d=src.getContext('2d',{willReadFrequently:true}).getImageData(0,0,src.width,src.height).data,map=new Map();
+    for(let i=0;i<d.length;i+=4){if(d[i+3]<128)continue;const k=(d[i]<<16)|(d[i+1]<<8)|d[i+2];let q=map.get(k);if(!q)map.set(k,q={n:0,r:d[i],g:d[i+1],b:d[i+2]});q.n++}
+    const reps=[...map.values()].sort((a,b)=>b.n-a.n);const old=st.palette||[];
+    st.colorMode=reps.length<=32?'palette':'hsl';
+    if(st.colorMode==='palette'){
+      st.palette=reps.map(q=>{const o=[q.r,q.g,q.b],p=old.find(z=>z.original?.[0]===o[0]&&z.original?.[1]===o[1]&&z.original?.[2]===o[2]);return{original:o,color:p?.color||rgbToHex(...o),locked:!!p?.locked}});
+      st.paletteHsl=st.paletteHsl||{h:0,s:0,l:0};st.protectOutline=st.protectOutline!==false;st.paintOverrides=st.paintOverrides instanceof Map?st.paintOverrides:new Map();if(!st.fillColor)st.fillColor=st.palette[0]?.color||'#000000';
+    }else st.hsl=st.hsl||{h:0,s:0,l:0};
+    st.activePaletteIndex=Number.isInteger(st.activePaletteIndex)?Math.min(st.activePaletteIndex,Math.max(0,st.palette.length-1)):0;st.colorReady=true;
+    return true;
+  }
+  function ensureCommitCanvas(st){
+    const src=baseCanvas(st);if(!src)return null;
+    const c=st.colorWorkCanvas||(st.colorWorkCanvas=document.createElement('canvas'));c.width=src.width;c.height=src.height;
+    const x=c.getContext('2d',{willReadFrequently:true});x.imageSmoothingEnabled=false;x.clearRect(0,0,c.width,c.height);
+    const im=x.createImageData(src.width,src.height),sd=src.getContext('2d',{willReadFrequently:true}).getImageData(0,0,src.width,src.height).data,d=im.data;
+    if(st.colorMode==='palette'){
+      const lookup=new Map((st.palette||[]).map(p=>[(p.original[0]<<16)|(p.original[1]<<8)|p.original[2],hexToRgb(p.color)||p.original]));
+      for(let i=0;i<d.length;i+=4){d[i]=sd[i];d[i+1]=sd[i+1];d[i+2]=sd[i+2];d[i+3]=sd[i+3];if(d[i+3]<128)continue;const q=lookup.get((d[i]<<16)|(d[i+1]<<8)|d[i+2]);if(q){d[i]=q[0];d[i+1]=q[1];d[i+2]=q[2]}}
+    }else{
+      const q=st.hsl||{h:0,s:0,l:0};
+      for(let i=0;i<d.length;i+=4){d[i]=sd[i];d[i+1]=sd[i+1];d[i+2]=sd[i+2];d[i+3]=sd[i+3];if(d[i+3]<128)continue;const z=rgbToHsl(d[i],d[i+1],d[i+2]),r=hslToRgb(z[0]+q.h,clamp(z[1]+q.s,0,100),clamp(z[2]+q.l,0,100));d[i]=r[0];d[i+1]=r[1];d[i+2]=r[2]}
+    }
+    // Pixel-level fill overrides are deliberately applied last: they are literal paint, not palette colors.
+    if(st.paintOverrides instanceof Map)for(const [idx,hx] of st.paintOverrides){const i=Number(idx);const q=hexToRgb(hx);if(q&&i>=0&&i+3<d.length){d[i]=q[0];d[i+1]=q[1];d[i+2]=q[2];d[i+3]=Math.max(d[i+3],255)}}
+    x.putImageData(im,0,0);
+    const dom=st.el?.querySelector('img');if(dom){dom.src=c.toDataURL('image/png');dom.style.transform=`scale(${st.flipX?-1:1},${st.flipY?-1:1})`}
+    return c;
+  }
+  function commit(st){if(!st)return;ensureCommitCanvas(st);if(typeof updateStickerElement==='function')updateStickerElement(st);if(typeof renderComposition==='function')renderComposition();updatePreview(st)}
+  window.__tamaRebuildSticker=ensureCommitCanvas;
+  window.__tamaGetSelectedSticker=()=>selectedSticker;
+  function currentIndex(st){return Math.max(0,Math.min(Number.isInteger(st?.activePaletteIndex)?st.activePaletteIndex:0,(st?.palette?.length||1)-1))}
+  function updatePreview(st){
+    if(!st)return;const i=currentIndex(st),p=st.palette?.[i];
+    if(p){const oh=rgbToHex(...p.original),hx=String(p.color||oh).toUpperCase();if(originalSwatch)originalSwatch.style.background=oh;if(currentSwatch)currentSwatch.style.background=hx;if(originalText)originalText.innerHTML='<small>元の色</small>'+oh;if(currentText)currentText.innerHTML='<small>選択した色（現在）</small>'+hx}
+    renderMini(st);updateRows(st);
+  }
+  function renderMini(st){
+    if(!liveCanvas||!st)return;const src=baseCanvas(st);if(!src)return;const w=liveCanvas.width||180,h=liveCanvas.height||180,ctx=liveCanvas.getContext('2d');ctx.clearRect(0,0,w,h);ctx.imageSmoothingEnabled=false;
+    const pad=8,sc=Math.min((w-pad*2)/src.width,(h-pad*2)/src.height),dw=Math.max(1,Math.round(src.width*sc)),dh=Math.max(1,Math.round(src.height*sc));
+    const tmp=document.createElement('canvas');tmp.width=src.width;tmp.height=src.height;tmp.getContext('2d').drawImage(src,0,0);const td=tmp.getContext('2d',{willReadFrequently:true}).getImageData(0,0,tmp.width,tmp.height),d=td.data;
+    if(st.colorMode==='palette'){const map=new Map((st.palette||[]).map(p=>[(p.original[0]<<16)|(p.original[1]<<8)|p.original[2],hexToRgb(p.color)||p.original]));for(let i=0;i<d.length;i+=4){if(d[i+3]<128)continue;const q=map.get((d[i]<<16)|(d[i+1]<<8)|d[i+2]);if(q){d[i]=q[0];d[i+1]=q[1];d[i+2]=q[2]}}}
+    else{const q=st.hsl||{h:0,s:0,l:0};for(let i=0;i<d.length;i+=4){if(d[i+3]<128)continue;const z=rgbToHsl(d[i],d[i+1],d[i+2]),r=hslToRgb(z[0]+q.h,clamp(z[1]+q.s,0,100),clamp(z[2]+q.l,0,100));d[i]=r[0];d[i+1]=r[1];d[i+2]=r[2]}}
+    if(st.paintOverrides instanceof Map)for(const [idx,hx] of st.paintOverrides){const q=hexToRgb(hx),ii=Number(idx);if(q&&ii>=0&&ii+3<d.length){d[ii]=q[0];d[ii+1]=q[1];d[ii+2]=q[2]}}
+    tmp.getContext('2d').putImageData(td,0,0);ctx.drawImage(tmp,Math.round((w-dw)/2),Math.round((h-dh)/2),dw,dh);
+  }
+  function updateRows(st){
+    if(!grid||st.colorMode!=='palette')return;grid.querySelectorAll('.stickerPaletteItem').forEach((row,i)=>{const p=st.palette[i];row.classList.toggle('activePalette',i===currentIndex(st));row.classList.toggle('locked',!!p?.locked);const l=row.querySelector('.stickerPaletteHex');const b=row.querySelector('.stickerPaletteColorBtn');const cb=row.querySelector('.stickerPaletteLock input');if(p){if(l)l.innerHTML='<b>元</b> '+rgbToHex(...p.original)+'<br><b>現在</b> '+p.color;if(b)b.style.background=p.color;if(cb)cb.checked=!!p.locked}});
+  }
+  function setMode(st){
+    if(!st)return;
+    const pal=st.colorMode==='palette';modeEl.textContent=pal?'パレット編集：'+st.palette.length+'色':'HSL編集：33色以上の画像です';
+    grid.hidden=!pal;paletteHsl.hidden=!pal;hslBox.hidden=pal;customPicker.hidden=true;const pickerToggle=ensurePickerToggle();pickerToggle.hidden=!pal;pickerToggle.classList.remove('active');pickerToggle.textContent='🎨 カスタムカラーピッカーを開く';
+    if(pal){
+      renderPalette(st);showFillButton(true);if(hint)hint.textContent='';
+    }else{showFillButton(false);if(hint)hint.textContent='';setHslControls(st.hsl||{h:0,s:0,l:0});}
+    updatePreview(st);
+  }
+  function renderPalette(st){
+    if(!grid)return;grid.innerHTML='';const pal=st.palette||[];
+    pal.forEach((p,i)=>{
+      const row=document.createElement('div');row.className='stickerPaletteItem'+(i===currentIndex(st)?' activePalette':'')+(p.locked?' locked':'');
+      const sw=document.createElement('span');sw.className='stickerPaletteSwatch';sw.style.background=rgbToHex(...p.original);sw.title='元の色';
+      const lab=document.createElement('span');lab.className='stickerPaletteHex';lab.innerHTML='<b>元</b> '+rgbToHex(...p.original)+'<br><b>現在</b> '+p.color;
+      const lw=document.createElement('label');lw.className='stickerPaletteLock';lw.title='この色をHSL変更から除外';const cb=document.createElement('input');cb.type='checkbox';cb.checked=!!p.locked;const lt=document.createElement('span');lt.textContent='HSLロック';lw.append(cb,lt);
+      cb.addEventListener('click',e=>{e.stopPropagation()},true);cb.addEventListener('change',e=>{e.stopPropagation();p.locked=cb.checked;row.classList.toggle('locked',p.locked);updatePreview(st)},true);
+      const pick=document.createElement('button');pick.type='button';pick.className='stickerPaletteColorBtn';pick.style.background=p.color;pick.innerHTML='<span>色変更</span>';
+      pick.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();st.activePaletteIndex=i;updatePreview(st);openPicker(st,!!st.fillMode)},true);
+      row.addEventListener('click',e=>{if(e.target.closest('.stickerPaletteLock')||e.target.closest('.stickerPaletteColorBtn'))return;st.activePaletteIndex=i;updatePreview(st);if(st.fillMode)renderFill(st);else openPicker(st)},true);
+      row.append(sw,lab,lw,pick);grid.appendChild(row);
+    });
+  }
+  function setHslControls(q){for(const k of ['h','s','l']){const a=k==='h'?-180:-100,b=k==='h'?180:100,v=clamp(q[k],a,b);if(hsl[k])hsl[k].value=v;if(hslN[k])hslN[k].value=v}}
+  function applyPaletteHsl(st){
+    const q=st.paletteHsl||{h:0,s:0,l:0};let dark=-1,dl=Infinity;if(st.protectOutline){st.palette.forEach((p,i)=>{const v=lum(p.original);if(v<dl){dl=v;dark=i}})}
+    for(let i=0;i<st.palette.length;i++){const p=st.palette[i];if(p.locked||i===dark)continue;const z=rgbToHsl(...p.original),r=hslToRgb(z[0]+q.h,clamp(z[1]+q.s,0,100),clamp(z[2]+q.l,0,100));p.color=rgbToHex(...r)}
+    commit(st);renderPalette(st);updatePreview(st);
+  }
+  for(const k of ['h','s','l']){
+    paletteH[k]?.addEventListener('input',e=>{const st=get();if(!st||st.colorMode!=='palette')return;const a=k==='h'?-180:-100,b=k==='h'?180:100,v=clamp(e.target.value,a,b);paletteHN[k].value=v;st.paletteHsl=st.paletteHsl||{h:0,s:0,l:0};st.paletteHsl[k]=v;applyPaletteHsl(st)},true);
+    paletteHN[k]?.addEventListener('input',e=>{const st=get();if(!st||st.colorMode!=='palette')return;paletteH[k].value=e.target.value;paletteH[k].dispatchEvent(new Event('input',{bubbles:false}))},true);
+    hsl[k]?.addEventListener('input',e=>{const st=get();if(!st||st.colorMode!=='hsl')return;const a=k==='h'?-180:-100,b=k==='h'?180:100,v=clamp(e.target.value,a,b);hslN[k].value=v;st.hsl=st.hsl||{h:0,s:0,l:0};st.hsl[k]=v;st.colorPreviewHsl={...st.hsl};commit(st)},true);
+    hslN[k]?.addEventListener('input',e=>{const st=get();if(!st||st.colorMode!=='hsl')return;hsl[k].value=e.target.value;hsl[k].dispatchEvent(new Event('input',{bubbles:false}))},true);
+  }
+  if(outlineProtect)outlineProtect.addEventListener('change',e=>{const st=get();if(!st||st.colorMode!=='palette')return;st.protectOutline=outlineProtect.checked;applyPaletteHsl(st)},true);
+  hslApply?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(st?.colorMode==='hsl')commit(st)},true);
+  hslReset?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(st?.colorMode!=='hsl')return;st.hsl={h:0,s:0,l:0};st.colorPreviewHsl={...st.hsl};setHslControls(st.hsl);commit(st)},true);
+
+  let ph=0,ps=100,pl=50;
+  function ensurePickerToggle(){
+    let b=document.getElementById('stickerCustomPickerToggle');
+    if(!b){b=document.createElement('button');b.type='button';b.id='stickerCustomPickerToggle';b.textContent='🎨 カスタムカラーピッカーを開く';customPicker.insertAdjacentElement('beforebegin',b);b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(!st||st.colorMode!=='palette')return;customPicker.hidden=!customPicker.hidden;b.classList.toggle('active',!customPicker.hidden);b.textContent=!customPicker.hidden?'🎨 カスタムカラーピッカーを閉じる':'🎨 カスタムカラーピッカーを開く';if(!customPicker.hidden){if(st.pickerTarget==='fill')pickerSetHex(st.fillColor||'#000000');else{const p=st.palette[currentIndex(st)];pickerSetHex(p?.color||rgbToHex(...p.original));}}},true)}
+    return b;
+  }
+  function pickerSetHex(hx){const r=hexToRgb(hx);if(!r)return;[ph,ps,pl]=rgbToHsl(...r);if(pickerHue)pickerHue.value=Math.round(ph);if(pickerLight)pickerLight.value=Math.round(pl);if(pickerHueVal)pickerHueVal.value=Math.round(ph)+'°';if(pickerLightVal)pickerLightVal.value=Math.round(pl)+'%';if(pickerHex)pickerHex.value=rgbToHex(...r);pickerDraw()}
+  function pickerDraw(){const c=pickerCanvas;if(!c)return;const ctx=c.getContext('2d'),w=c.width,h=c.height;const g=ctx.createLinearGradient(0,0,w,0);g.addColorStop(0,'#fff');g.addColorStop(1,'hsl('+ph+' 100% 50%)');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);const v=ctx.createLinearGradient(0,0,0,h);v.addColorStop(0,'rgba(255,255,255,0)');v.addColorStop(1,'rgba(0,0,0,1)');ctx.fillStyle=v;ctx.fillRect(0,0,w,h);ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(ps/100*w,(100-pl)/100*h,8,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='#111';ctx.lineWidth=1;ctx.beginPath();ctx.arc(ps/100*w,(100-pl)/100*h,10,0,Math.PI*2);ctx.stroke()}
+  function pickerApplyLive(st){if(!st)return;const hx=rgbToHex(...hslToRgb(ph,ps,pl));if(st.pickerTarget==='fill'){st.fillColor=hx;commit(st);updatePreview(st);if(pickerHex)pickerHex.value=hx;pickerDraw();if(st.fillMode)renderFill(st);return}const i=currentIndex(st),p=st.palette?.[i];if(!p)return;p.color=hx;st.colorPreviewDraft=null;commit(st);updatePreview(st);pickerHex.value=hx;pickerDraw();if(st.fillMode)renderFill(st)}
+  function openPicker(st,keepFill=false){if(!st||st.colorMode!=='palette')return;if(!keepFill)st.fillMode=false;st.pickerTarget='palette';customPicker.hidden=false;const b=ensurePickerToggle();b.hidden=false;b.classList.add('active');b.textContent='🎨 カスタムカラーピッカーを閉じる';updateFillVisibility(st);const p=st.palette[currentIndex(st)];pickerSetHex(p?.color||rgbToHex(...p.original));}
+  function openFillPicker(st){if(!st||st.colorMode!=='palette')return;st.pickerTarget='fill';customPicker.hidden=false;const b=ensurePickerToggle();b.hidden=false;b.classList.add('active');b.textContent='🎨 カスタムカラーピッカーを閉じる';pickerSetHex(st.fillColor||st.palette[currentIndex(st)]?.color||'#000000')}
+  function pointerPicker(e){const r=pickerCanvas.getBoundingClientRect();ps=clamp((e.clientX-r.left)/r.width*100,0,100);pl=clamp((1-(e.clientY-r.top)/r.height)*100,0,100);pickerApplyLive(get())}
+  pickerCanvas?.addEventListener('pointerdown',e=>{pickerCanvas.setPointerCapture?.(e.pointerId);pointerPicker(e)},true);
+  pickerCanvas?.addEventListener('pointermove',e=>{if(e.buttons)pointerPicker(e)},true);
+  pickerHue?.addEventListener('input',e=>{ph=clamp(e.target.value,0,360);pickerHueVal.value=Math.round(ph)+'°';pickerApplyLive(get());},true);
+  pickerLight?.addEventListener('input',e=>{pl=clamp(e.target.value,0,100);pickerLightVal.value=Math.round(pl)+'%';pickerApplyLive(get());},true);
+  pickerHex?.addEventListener('input',e=>{const r=hexToRgb(e.target.value);if(r){[ph,ps,pl]=rgbToHsl(...r);pickerHue.value=Math.round(ph);pickerLight.value=Math.round(pl);pickerHueVal.value=Math.round(ph)+'°';pickerLightVal.value=Math.round(pl)+'%';pickerApplyLive(get());}},true);
+  pickerApply?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();pickerApplyLive(get())},true);
+  pickerReset?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(!st||st.colorMode!=='palette')return;if(st.pickerTarget==='fill'){st.fillColor=st.palette[currentIndex(st)]?.color||'#000000';commit(st);updatePreview(st);pickerSetHex(st.fillColor);if(st.fillMode)renderFill(st);return}const p=st.palette[currentIndex(st)];if(!p)return;p.color=rgbToHex(...p.original);commit(st);updatePreview(st);pickerSetHex(p.color)},true);
+
+  function showFillButton(show){
+    let b=document.getElementById('stickerFillModeButton');if(!show){if(b)b.hidden=true;return}
+    if(!b){b=document.createElement('button');b.type='button';b.id='stickerFillModeButton';b.textContent='🪣 塗りつぶし';customPicker.insertAdjacentElement('afterend',b);b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(!st||st.colorMode!=='palette')return;st.fillMode=!st.fillMode;updateFillVisibility(st);if(st.fillMode)renderFill(st)},true)}
+    b.hidden=false;b.classList.toggle('active',!!get()?.fillMode);
+  }
+  function ensureFillPanel(){
+    let panel=document.getElementById('tamaFillPanel');if(panel)return panel;
+    panel=document.createElement('div');panel.id='tamaFillPanel';panel.className='tamaFillPanel';panel.hidden=true;
+    panel.innerHTML='<div class="tamaFillTitle">🪣 塗りつぶし</div><div class="tamaFillTarget"><span class="tamaFillTargetSwatch" id="tamaFillTargetSwatch"></span><span id="tamaFillTargetText"></span><button type="button" id="tamaFillColorButton" class="tamaFillColorButton">塗りつぶし色を変更</button></div><div class="tamaFillCanvasWrap"><canvas id="tamaFillCanvas"></canvas></div><div class="tamaFillHint">画像を拡大表示しています。塗りたい領域をタップしてください。</div>';
+    grid.insertAdjacentElement('afterend',panel);panel.querySelector('canvas').addEventListener('pointerdown',fillPointer,true);panel.querySelector('#tamaFillColorButton').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(!st)return;openFillPicker(st)},true);return panel;
+  }
+  function updateFillVisibility(st){const panel=ensureFillPanel();panel.hidden=!st?.fillMode;const b=document.getElementById('stickerFillModeButton');if(b)b.classList.toggle('active',!!st?.fillMode);if(st?.fillMode)renderFill(st)}
+  function buildFillImageData(st){
+    const src=baseCanvas(st);if(!src)return null;
+    const sd=src.getContext('2d',{willReadFrequently:true}).getImageData(0,0,src.width,src.height);const d=sd.data;
+    if(st.colorMode==='palette'){
+      const map=new Map((st.palette||[]).map(p=>[(p.original[0]<<16)|(p.original[1]<<8)|p.original[2],hexToRgb(p.color)||p.original]));
+      for(let i=0;i<d.length;i+=4){if(d[i+3]<128)continue;const q=map.get((d[i]<<16)|(d[i+1]<<8)|d[i+2]);if(q){d[i]=q[0];d[i+1]=q[1];d[i+2]=q[2]}}
+    }
+    if(st.paintOverrides instanceof Map)for(const [idx,hx] of st.paintOverrides){const q=hexToRgb(hx),ii=Number(idx);if(q&&ii>=0&&ii+3<d.length){d[ii]=q[0];d[ii+1]=q[1];d[ii+2]=q[2];d[ii+3]=Math.max(d[ii+3],255)}}
+    return sd;
+  }
+  function renderFill(st){
+    if(!st||st.colorMode!=='palette')return;const panel=ensureFillPanel(),cv=panel.querySelector('canvas'),im=buildFillImageData(st);if(!im)return;
+    const maxW=Math.min(560,Math.max(280,editor.clientWidth-40)),maxH=Math.min(window.innerHeight*.62,560),sc=Math.min(maxW/im.width,maxH/im.height);cv.width=im.width;cv.height=im.height;cv.style.width=Math.max(1,Math.round(im.width*sc))+'px';cv.style.height=Math.max(1,Math.round(im.height*sc))+'px';const ctx=cv.getContext('2d');ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,cv.width,cv.height);ctx.putImageData(im,0,0);
+    const sw=panel.querySelector('#tamaFillTargetSwatch'),tx=panel.querySelector('#tamaFillTargetText'),fc=st.fillColor||st.palette[currentIndex(st)]?.color||'#000000';if(sw)sw.style.background=fc;if(tx)tx.textContent='塗りつぶし色：'+fc.toUpperCase();
+  }
+  function fillPointer(e){
+    const st=get();if(!st||!st.fillMode||st.colorMode!=='palette')return;e.preventDefault();const cv=e.currentTarget,r=cv.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)*cv.width/r.width),y=Math.floor((e.clientY-r.top)*cv.height/r.height);if(x<0||y<0||x>=cv.width||y>=cv.height)return;
+    const im=buildFillImageData(st);if(!im)return;const d=im.data,si=(y*cv.width+x)*4;if(d[si+3]<128){if(hint)hint.textContent='透明部分は塗りつぶしできません。';return}
+    const target=[d[si],d[si+1],d[si+2]],q=new Int32Array(cv.width*cv.height),seen=new Uint8Array(cv.width*cv.height);let head=0,tail=0;q[tail++]=y*cv.width+x;seen[y*cv.width+x]=1;const targetColor=st.fillColor||'#000000';st.paintOverrides=st.paintOverrides instanceof Map?st.paintOverrides:new Map();let count=0;
+    while(head<tail){const pos=q[head++],px=pos%cv.width,py=(pos-px)/cv.width,idx=pos*4;if(d[idx+3]>=128&&d[idx]===target[0]&&d[idx+1]===target[1]&&d[idx+2]===target[2]){st.paintOverrides.set(idx,targetColor);count++;if(px>0){const n=pos-1;if(!seen[n]){seen[n]=1;q[tail++]=n}}if(px<cv.width-1){const n=pos+1;if(!seen[n]){seen[n]=1;q[tail++]=n}}if(py>0){const n=pos-cv.width;if(!seen[n]){seen[n]=1;q[tail++]=n}}if(py<cv.height-1){const n=pos+cv.width;if(!seen[n]){seen[n]=1;q[tail++]=n}}}}
+    commit(st);renderFill(st);if(hint)hint.textContent=count+'ピクセルを塗りつぶしました。';
+  }
+
+  if(!colorReset?.nextElementSibling?.id){const b=document.createElement('button');b.type='button';b.id='stickerColorDecision';b.textContent='決定する';colorReset?.insertAdjacentElement('afterend',b);b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(st?.colorMode==='palette')commit(st);else if(st?.colorMode==='hsl')commit(st);closeColorEditor()},true)}
+  colorReset?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(!st)return;if(st.colorMode==='palette'){st.palette.forEach(p=>p.color=rgbToHex(...p.original));st.paletteHsl={h:0,s:0,l:0};st.paintOverrides=new Map();st.fillColor=st.palette[0]?.color||'#000000';st.protectOutline=true;st.palette.forEach(p=>p.locked=false);outlineProtect.checked=true}else st.hsl={h:0,s:0,l:0};commit(st);setMode(st)},true);
+  copyBtn?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(!st)return;const data=st.colorMode==='palette'?{v:3,mode:'palette',colors:st.palette.map(p=>({original:p.original,color:p.color,locked:!!p.locked})),protectOutline:st.protectOutline!==false}:{v:3,mode:'hsl',hsl:{...st.hsl}};localStorage.setItem('TAMA_STICKER_PALETTE_CLIPBOARD_V3',JSON.stringify(data));if(hint)hint.textContent='カラーパレットをコピーしました。'},true);
+  pasteBtn?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(!st)return;let data=null;try{data=JSON.parse(localStorage.getItem('TAMA_STICKER_PALETTE_CLIPBOARD_V3')||localStorage.getItem('TAMA_STICKER_PALETTE_CLIPBOARD_V2')||'null')}catch(_){}if(!data){if(hint)hint.textContent='コピーされたカラーパレットがありません。';return}if(st.colorMode==='palette'&&data.mode==='palette'){st.palette.forEach(p=>{let best=null,bd=Infinity;for(const q of data.colors||[]){const dd=(p.original[0]-q.original[0])**2+(p.original[1]-q.original[1])**2+(p.original[2]-q.original[2])**2;if(dd<bd){bd=dd;best=q}}if(best){p.color=best.color;p.locked=!!best.locked}});st.protectOutline=data.protectOutline!==false;commit(st);setMode(st);if(hint)hint.textContent='カラーパレットを貼り付けました。'}else if(st.colorMode==='hsl'&&data.mode==='hsl'){st.hsl={...data.hsl};commit(st);setMode(st)}},true);
+
+  function openColorEditor(){const st=get();if(!st)return;if(!st.colorReady||!st.colorMode)analyze(st);else analyze(st);editor.hidden=false;backdrop.hidden=false;editor.style.zIndex='1000000';backdrop.style.zIndex='999990';setMode(st);if(st.colorMode==='palette')renderPalette(st);}
+  function closeColorEditor(){const st=get();if(st)st.fillMode=false;editor.hidden=true;backdrop.hidden=true;customPicker.hidden=true;const tb=document.getElementById('stickerCustomPickerToggle');if(tb){tb.classList.remove('active');tb.textContent='🎨 カスタムカラーピッカーを開く'}const panel=document.getElementById('tamaFillPanel');if(panel)panel.hidden=true}
+  window.openStickerColorEditor=openColorEditor;window.closeStickerColorEditor=closeColorEditor;
+  closeBtn?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();closeColorEditor()},true);
+  backdrop?.addEventListener('click',e=>{if(e.target===backdrop)closeColorEditor()},true);
+  openBtn?.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();openColorEditor()},true);
+  function updateOpen(){if(!openBtn)return;const st=get();openBtn.style.display=st?'block':'none';openBtn.disabled=!st}
+  const oldRenderTools=window.renderStickerTools;if(typeof oldRenderTools==='function'&&!oldRenderTools.__v138){const f=function(){oldRenderTools.apply(this,arguments);updateOpen()};f.__v138=true;window.renderStickerTools=f}
+  const oldSelect=window.selectSticker;if(typeof oldSelect==='function'&&!oldSelect.__v138){const f=function(st){oldSelect.call(this,st);updateOpen();if(!st)closeColorEditor();};f.__v138=true;window.selectSticker=f}
+  window.addEventListener('resize',()=>{const st=get();if(st?.fillMode)renderFill(st)},false);
+  updateOpen();
 })();
 </script>
