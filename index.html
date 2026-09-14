@@ -1253,7 +1253,7 @@ function showStickerToast(message){
   stickerAddedToastTimer=setTimeout(()=>toast.classList.remove('show'),900);
 }
 function showStickerAddedToast(){
-  showStickerToast('スタンプを追加しました');
+  showStickerToast('スタンプが追加されました');
 }
 
 function addSticker(img,name,showToast=true){
@@ -1896,26 +1896,125 @@ function extractShareId(v){const t=extractShareTarget(v);return t?.id||null}
 function parseSharePayload(text){return extractShareTarget(text)}
 async function readShareIdFromQRFile(file){
   if(!file)throw new Error('QR画像がありません');
-  const img=await new Promise((resolve,reject)=>{const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);resolve(im)};im.onerror=()=>{URL.revokeObjectURL(u);reject(new Error('QR画像を読み込めませんでした'))};im.src=u});
-  const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
-  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
-  const tries=[];
-  function addScan(sx,sy,sw,sh,outW){
-    if(sw<=0||sh<=0)return; const ratio=Math.min(1,outW/sw);const tw=Math.max(1,Math.round(sw*ratio)),th=Math.max(1,Math.round(sh*ratio));
-    canvas.width=tw;canvas.height=th;ctx.imageSmoothingEnabled=false;ctx.drawImage(img,sx,sy,sw,sh,0,0,tw,th);tries.push(ctx.getImageData(0,0,tw,th));
+
+  // v164: 共有QRの「データ形式・生成処理」はv163のまま。
+  // 読み取り方法だけを強化する。
+  const img=await new Promise((resolve,reject)=>{
+    const u=URL.createObjectURL(file),im=new Image();
+    im.onload=()=>{URL.revokeObjectURL(u);resolve(im)};
+    im.onerror=()=>{URL.revokeObjectURL(u);reject(new Error('QR画像を読み込めませんでした'))};
+    im.src=u;
+  });
+
+  // ① Chrome/Android等で利用できる場合はBarcodeDetectorを最優先。
+  // rawValueをそのままextractShareTargetへ渡すため、
+  // sharepng / fid / txt を削らずに復元できる。
+  try{
+    if('BarcodeDetector' in window){
+      const formats=await BarcodeDetector.getSupportedFormats().catch(()=>[]);
+      if(formats.includes('qr_code')){
+        const detector=new BarcodeDetector({formats:['qr_code']});
+        let found=[];
+        try{
+          const bmp=await createImageBitmap(file);
+          found=await detector.detect(bmp);
+          if(bmp.close)bmp.close();
+        }catch(e){
+          found=await detector.detect(img);
+        }
+        for(const item of found||[]){
+          const raw=String(item.rawValue||'').trim();
+          if(!raw)continue;
+          const target=parseSharePayload(raw);
+          if(target)return target;
+        }
+      }
+    }
+  }catch(e){
+    console.warn('BarcodeDetector QR scan failed; falling back to jsQR.',e);
   }
-  addScan(0,0,w,h,1200);
-  addScan(0,0,w,h,2000);
-  const crops=[[0,0,.75,.75],[.1,0,.8,.8],[0,.1,1,.8],[0,.2,1,.8],[.2,.2,.8,.8]];
-  for(const [x,y,cw,ch] of crops)addScan(Math.round(w*x),Math.round(h*y),Math.round(w*cw),Math.round(h*ch),1200);
+
+  // ② jsQRフォールバック。
+  if(typeof jsQR!=='function')throw new Error('QRコード読み取り機能を読み込めませんでした');
+
+  const w=img.naturalWidth||img.width;
+  const h=img.naturalHeight||img.height;
+  if(!w||!h)throw new Error('QR画像のサイズを取得できませんでした');
+
+  const canvas=document.createElement('canvas');
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const tries=[];
+
+  function addScan(sx,sy,sw,sh,outW){
+    if(sw<=0||sh<=0)return;
+    const ratio=Math.min(1,outW/sw);
+    const tw=Math.max(1,Math.round(sw*ratio));
+    const th=Math.max(1,Math.round(sh*ratio));
+    canvas.width=tw;canvas.height=th;
+    ctx.filter='none';
+    ctx.imageSmoothingEnabled=false;
+    ctx.clearRect(0,0,tw,th);
+    ctx.drawImage(img,sx,sy,sw,sh,0,0,tw,th);
+    tries.push(ctx.getImageData(0,0,tw,th));
+  }
+
+  // 元画像をまずそのまま読む。
+  addScan(0,0,w,h,Math.max(w,h));
+
+  // 大きすぎる画像は縮小版も用意。
+  if(Math.max(w,h)>1600)addScan(0,0,w,h,1600);
+
+  // QRカードの余白・周辺UIが写り込んだスクリーンショットに対応。
+  const crops=[
+    [0,0,.90,.90],
+    [.05,.05,.90,.90],
+    [.10,0,.80,.80],
+    [0,.10,1,.80],
+    [0,.20,1,.70],
+    [.10,.10,.80,.80]
+  ];
+  for(const [x,y,cw,ch] of crops){
+    addScan(Math.round(w*x),Math.round(h*y),Math.round(w*cw),Math.round(h*ch),1400);
+  }
+
+  // ③ 通常画像 → 二値化の順で試す。
   for(const data of tries){
     let r=null;
-    try{if(window.BarcodeDetector){/* native detector handled below */}}catch(e){}
-    if(window.jsQR){r=jsQR(data.data,data.width,data.height,{inversionAttempts:'attemptBoth'});if(r?.data){const target=parseSharePayload(r.data);if(target)return target}}
-    // Thresholded versions improve scans of screenshots/photos.
-    const a=new Uint8ClampedArray(data.data.length);const levels=[110,150,190,220];
-    for(const level of levels){for(let i=0;i<data.data.length;i+=4){const g=(data.data[i]*299+data.data[i+1]*587+data.data[i+2]*114)/1000;const v=g<level?0:255;a[i]=a[i+1]=a[i+2]=v;a[i+3]=255}r=jsQR(a,data.width,data.height,{inversionAttempts:'attemptBoth'});if(r?.data){const target=parseSharePayload(r.data);if(target)return target}}
+
+    try{
+      r=jsQR(data.data,data.width,data.height,{inversionAttempts:'attemptBoth'});
+    }catch(e){}
+
+    if(r?.data){
+      const target=parseSharePayload(r.data);
+      if(target)return target;
+    }
+
+    // スクリーンショットの圧縮・明るさ差に対応。
+    const a=new Uint8ClampedArray(data.data.length);
+    const levels=[90,110,130,150,170,190,210,230];
+
+    for(const level of levels){
+      for(let i=0;i<data.data.length;i+=4){
+        const g=(data.data[i]*299+data.data[i+1]*587+data.data[i+2]*114)/1000;
+        const v=g<level?0:255;
+        a[i]=a[i+1]=a[i+2]=v;
+        a[i+3]=255;
+      }
+
+      try{
+        r=jsQR(a,data.width,data.height,{inversionAttempts:'attemptBoth'});
+      }catch(e){
+        r=null;
+      }
+
+      if(r?.data){
+        const target=parseSharePayload(r.data);
+        if(target)return target;
+      }
+    }
   }
+
   throw new Error('共有QRコードを読み取れませんでした');
 }
 async function requestSharedPngMetadata(shareId){
@@ -2288,27 +2387,29 @@ document.getElementById('copy2').onclick=()=>navigator.clipboard.writeText(docum
 
 <script id="sticker-toast-top-fix">
 (function(){
-  function showStickerAddedToast(){
-    var t=document.getElementById('stickerAddedToast');
-    if(!t) return;
-    if(t.parentElement!==document.body) document.body.appendChild(t);
-    t.style.setProperty('z-index','2147483647','important');
-    t.classList.add('show');
-    clearTimeout(window.__stickerAddedToastTimer);
-    window.__stickerAddedToastTimer=setTimeout(function(){t.classList.remove('show');},1600);
-  }
-  window.showStickerAddedToast=showStickerAddedToast;
-
   function relocateToast(){
     var t=document.getElementById('stickerAddedToast');
-    if(t && t.parentElement!==document.body) document.body.appendChild(t);
-    if(t) t.style.setProperty('z-index','2147483647','important');
+    if(!t)return;
+    if(t.parentElement!==document.body) document.body.appendChild(t);
+    t.style.setProperty('position','fixed','important');
+    t.style.setProperty('left','50%','important');
+    t.style.setProperty('top','50%','important');
+    t.style.setProperty('transform','translate(-50%,-50%) scale(1)','important');
+    t.style.setProperty('z-index','2147483647','important');
+    t.style.setProperty('pointer-events','none','important');
   }
+
   if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',relocateToast);
+    document.addEventListener('DOMContentLoaded',relocateToast,{once:true});
   }else{
     relocateToast();
   }
+
+  try{
+    new MutationObserver(function(){
+      relocateToast();
+    }).observe(document.body,{childList:true,subtree:true});
+  }catch(e){}
 })();
 </script>
 </body></html>
