@@ -629,6 +629,10 @@ document.getElementById('clearAllTextColors').onclick=resetAllTextColors;
 const bgFile=document.getElementById('bgFile');
 let selectedBG='backgrounds/blue.png';
 let customBG=null;
+// v171: 選択中の背景画像を使い回し、スタンプ追加のたびに同じ背景を再取得しない。
+let loadedBGUrl='';
+let loadedBGImage=null;
+let loadedBGPromise=null;
 const BG_LIST=[['blue','ブルー'],['pink','ピンク'],['mint','ミント'],['lemon','レモン'],['lavender','ラベンダー'],['sky','スカイ'],['night','ナイト'],['cream','クリーム']];
 const bgImages={};
 const GITHUB_REPO_API='https://api.github.com/repos/tamagohiragana/tamatamatama/contents/';
@@ -706,7 +710,7 @@ function makeAssetCard(entry,kind){
   b.append(im,sp);
   if(kind==='bg'){
     b.onclick=()=>{
-      selectedBG=assetUrl(entry); customBG=null;
+      selectedBG=assetUrl(entry); customBG=null; loadedBGUrl=''; loadedBGImage=null; loadedBGPromise=null;
       document.querySelectorAll('#bgGrid .assetCard').forEach(x=>x.classList.remove('active'));
       b.classList.add('active'); renderComposition();
       closeAssetFolderModal();
@@ -889,7 +893,7 @@ async function initBG(){
   });
   // 初期値は従来どおりblue
   const blueBtn=[...document.querySelectorAll('#bgGrid .assetCard')].find(b=>b.querySelector('.assetLabel')?.textContent==='ブルー');
-  if(blueBtn){blueBtn.classList.add('active');selectedBG='backgrounds/blue.png?v='+Date.now();}
+  if(blueBtn){blueBtn.classList.add('active');selectedBG='backgrounds/blue.png?v='+Date.now();loadedBGUrl='';loadedBGImage=null;loadedBGPromise=null;}
 }
 
 initBG();
@@ -903,7 +907,7 @@ async function initStandardStickers(){
 }
 
 initStandardStickers();
-bgFile.onchange=e=>{const f=e.target.files[0];if(!f)return;const u=URL.createObjectURL(f);const im=new Image();im.onload=()=>{customBG=im;selectedBG=null;document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));renderComposition()};im.src=u;};
+bgFile.onchange=e=>{const f=e.target.files[0];if(!f)return;const u=URL.createObjectURL(f);const im=new Image();im.onload=()=>{customBG=im;selectedBG=null;loadedBGUrl='';loadedBGImage=null;loadedBGPromise=null;document.querySelectorAll('.bgBtn').forEach(x=>x.classList.remove('active'));renderComposition()};im.src=u;};
 
 function glyphMetrics(ch,fs){
   if(ch===' '||ch==='　') return {w:Math.max(8,fs*.45),h:fs};
@@ -935,9 +939,40 @@ async function makeLayout(){
   return {fs,left,top,right,lines,lineGap,paraGap,totalH};
 }
 async function drawBackground(){
-  if(!document.getElementById('useBG').checked){ctx.fillStyle='#fff';ctx.fillRect(0,0,1200,1200);return;}
-  const im=customBG||await new Promise(resolve=>{const x=new Image();x.crossOrigin='anonymous';x.onload=()=>resolve(x);x.onerror=()=>resolve(null);x.src=selectedBG;});
-  if(im){ctx.drawImage(im,0,0,1200,1200);} else {ctx.fillStyle='#fffaf0';ctx.fillRect(0,0,1200,1200);}
+  if(!document.getElementById('useBG').checked){
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,1200,1200);return;
+  }
+
+  if(customBG){
+    ctx.drawImage(customBG,0,0,1200,1200);return;
+  }
+
+  const url=selectedBG;
+  if(!url){
+    ctx.fillStyle='#fffaf0';ctx.fillRect(0,0,1200,1200);return;
+  }
+
+  let im=null;
+  if(loadedBGUrl===url && loadedBGImage){
+    im=loadedBGImage;
+  }else if(loadedBGUrl===url && loadedBGPromise){
+    im=await loadedBGPromise;
+  }else{
+    loadedBGUrl=url;
+    loadedBGImage=null;
+    loadedBGPromise=new Promise(resolve=>{
+      const x=new Image();
+      x.crossOrigin='anonymous';
+      x.onload=()=>{loadedBGImage=x;resolve(x);};
+      x.onerror=()=>{resolve(null);};
+      x.src=url;
+    });
+    im=await loadedBGPromise;
+    loadedBGPromise=null;
+  }
+
+  if(im){ctx.drawImage(im,0,0,1200,1200);}
+  else {ctx.fillStyle='#fffaf0';ctx.fillRect(0,0,1200,1200);}
 }
 function drawGlyph(ctx,im,x,y,fs,color,outline){
   if(!im)return;
@@ -1253,7 +1288,7 @@ function showStickerAddedToast(){
  * - 複数スタンプが重なった場合、実際に触れた不透明ピクセルを持つ
  *   最前面のスタンプを優先して選択・ドラッグする。
  */
-/* v170:
+/* v171:
  * 削除履歴を最大5件保持。↶で削除を取り消し、↷でその取り消しを戻す。
  * 新しい削除を行った場合は、↷側の履歴をクリアする。
  */
