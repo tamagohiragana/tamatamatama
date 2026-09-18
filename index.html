@@ -23,7 +23,11 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 .hint,.small{font-size:12px;color:#68758a;margin-top:9px}
 .drop{border:2px dashed #9bb1c9;border-radius:14px;padding:25px;text-align:center;color:#64748b;background:#f9fcff}#file{display:none}
 #composeCanvas{display:block;width:100%;max-width:620px;height:auto;aspect-ratio:1/1;margin:14px auto 0;border:2px solid #d7e1ec;border-radius:18px;background:#fff;box-shadow:0 8px 20px #00000012}
-.composeWrap{position:relative;width:100%;max-width:620px;margin:14px auto 0;touch-action:none}.composeWrap #composeCanvas{margin:0;position:relative;z-index:0}.stickerLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:18px;z-index:2}.qrLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:18px;z-index:20}.qrLayer canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.stickerLayer #textCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}.stickerItem{position:absolute;left:0;top:0;width:120px;height:120px;transform-origin:center center;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:move}.stickerItem img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none}.stickerItem.selected{outline:1px dashed #1685e5;outline-offset:3px}.stickerItem:not(.selected) .rotateHandle{display:none}.rotateHandle{position:absolute;right:-20px;top:-20px;width:34px;height:34px;border:0;background:transparent;color:#1685e5;font-size:28px;line-height:34px;text-align:center;font-weight:900;text-shadow:0 1px 2px #fff,0 0 3px #fff;pointer-events:auto;touch-action:none;user-select:none}.stickerRow{display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center;margin:12px 0;font-weight:800}.stickerRow input{width:100%;min-width:0;font-size:13px}.layerRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.layerRow button{padding:10px 8px;font-size:14px}.layerRow button:disabled{opacity:.4;cursor:default}.stickerSizeBtn{display:block;width:100%;height:42px;border:1px solid #d7e1ec;border-radius:12px;background:#f4f8fc;color:#182b55;font-size:30px;font-weight:900;line-height:1;padding:0;margin:8px 0;touch-action:manipulation}.stickerSizeBtn:active{background:#e7eef7}.stickerToolRow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0}.stickerToolRow button{width:100%;padding:10px 6px;font-size:14px}.stickerToolRow button.active{background:#1685e5}.stickerActionRow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0 0}.stickerActionRow button{width:100%;padding:11px 8px;font-size:14px}.stickerActionRow button:disabled{opacity:.4;cursor:default}.standardStickerGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}.standardStickerBtn{border:1px solid #ead7ea;background:#fff;border-radius:12px;padding:5px;min-width:0;cursor:pointer}.standardStickerBtn img{display:block;width:100%;height:82px;object-fit:contain;background:#fff;border-radius:8px}.standardStickerBtn span{display:block;font-size:10px;font-weight:800;color:#5a4868;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}@media(max-width:800px){.standardStickerGrid{grid-template-columns:repeat(4,1fr);gap:6px}.standardStickerBtn{padding:3px}.standardStickerBtn img{height:72px}}.actionRow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.actionRow button{width:100%;min-width:0;padding:11px 5px;font-size:13px;white-space:nowrap}.shareRow{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}.shareRow button{width:100%;min-width:0;padding:11px 5px;font-size:13px;white-space:nowrap}.share{background:#1685e5}#previewCanvas{display:block;width:100%;max-width:620px;height:auto;border:2px solid #d7e1ec;border-radius:18px;margin:14px auto 0;background:#fff;box-shadow:0 8px 20px #00000012}
+.composeWrap{position:relative;width:100%;max-width:620px;margin:14px auto 0;touch-action:none}.composeWrap #composeCanvas{margin:0;position:relative;z-index:0}.stickerLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:18px;z-index:2}.qrLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:18px;z-index:20}.qrLayer canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.stickerLayer #textCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}.stickerItem{position:absolute;left:0;top:0;width:120px;height:120px;transform-origin:center center;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:move}.stickerItem img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none}.stickerItem.selected{outline:1px dashed #1685e5;outline-offset:3px}.stickerItem:not(.selected) .rotateHandle{display:none}.rotateHandle{position:absolute;right:-20px;top:-20px;width:34px;height:34px;border:0;background:transparent;color:#1685e5;font-size:28px;line-height:34px;text-align:center;font-weight:900;text-shadow:0 1px 2px #fff,0 0 3px #fff;pointer-events:auto;touch-action:none;user-select:none}.stickerRow{display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:center;margin:12px 0;font-weight:800}.stickerRow input{width:100%;min-width:0;font-size:13px}.layerRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.layerRow button{padding:10px 8px;font-size:14px}.layerRow button:disabled{opacity:.4;cursor:default}.stickerSizeBtn{display:block;width:100%;height:42px;border:1px solid #d7e1ec;border-radius:12px;background:#f4f8fc;color:#182b55;font-size:30px;font-weight:900;line-height:1;padding:0;margin:8px 0;touch-action:manipulation}.stickerSizeBtn:active{background:#e7eef7}.stickerToolRow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0}.stickerToolRow button{width:100%;padding:10px 6px;font-size:14px}.stickerToolRow button.active{background:#1685e5}
+.stickerGroupActionRow{display:grid!important;grid-template-columns:1fr 1fr 1fr!important;gap:8px!important}
+.stickerGroupActionRow button{min-width:0!important;padding-left:6px!important;padding-right:6px!important;font-size:14px!important}
+@media(max-width:520px){.stickerGroupActionRow button{font-size:12px!important}}
+.stickerActionRow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0 0}.stickerActionRow button{width:100%;padding:11px 8px;font-size:14px}.stickerActionRow button:disabled{opacity:.4;cursor:default}.standardStickerGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}.standardStickerBtn{border:1px solid #ead7ea;background:#fff;border-radius:12px;padding:5px;min-width:0;cursor:pointer}.standardStickerBtn img{display:block;width:100%;height:82px;object-fit:contain;background:#fff;border-radius:8px}.standardStickerBtn span{display:block;font-size:10px;font-weight:800;color:#5a4868;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}@media(max-width:800px){.standardStickerGrid{grid-template-columns:repeat(4,1fr);gap:6px}.standardStickerBtn{padding:3px}.standardStickerBtn img{height:72px}}.actionRow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.actionRow button{width:100%;min-width:0;padding:11px 5px;font-size:13px;white-space:nowrap}.shareRow{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}.shareRow button{width:100%;min-width:0;padding:11px 5px;font-size:13px;white-space:nowrap}.share{background:#1685e5}#previewCanvas{display:block;width:100%;max-width:620px;height:auto;border:2px solid #d7e1ec;border-radius:18px;margin:14px auto 0;background:#fff;box-shadow:0 8px 20px #00000012}
 #recognized{font-size:22px;min-height:80px;white-space:pre-wrap}
 .bad{color:#b00020;font-weight:700}.ok{color:#176b2c;font-weight:700}
 .topCreateGrid{display:flex;flex-direction:column;width:100%;gap:14px}.createMain,.backgroundPanel{min-width:0;width:100%}.backgroundPanel{overflow:hidden}.controls{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.controlBox{border:1px solid #d9e3ef;border-radius:15px;padding:13px;background:#fbfdff}
@@ -323,6 +327,83 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 }
 </style>
 
+
+<style id="v183-folder-tree-fix">
+/* v183: GitHubのフォルダ一覧をtree API 1回取得方式に変更。UI/スタンプ処理は変更しない。 */
+</style>
+
+<style id="v184-folder-card-size-fix">
+/* v184: ③スタンプの選択フォルダだけを小型化。
+   フォルダの読み込み・グループ化・色変更・白枠などの機能は変更しない。 */
+#stickerAssetBrowser #standardStickerGrid > button.folderCard{
+  flex:0 0 82px !important;
+  width:82px !important;
+  min-width:82px !important;
+  max-width:82px !important;
+  height:88px !important;
+  min-height:88px !important;
+  max-height:88px !important;
+  padding:4px !important;
+}
+#stickerAssetBrowser #standardStickerGrid > button.folderCard .folderIcon{
+  font-size:26px !important;
+  line-height:1 !important;
+}
+#stickerAssetBrowser #standardStickerGrid > button.folderCard .assetLabel{
+  font-size:9px !important;
+  margin-top:3px !important;
+}
+</style>
+
+
+<style id="v185-group-color-square-fix">
+/* v185: グループ色編集の縦長キャンバスを正方形に固定。
+   色データ・グループ構造・通常スタンプの表示サイズは変更しない。 */
+#stickerColorEditor .tamaFillCanvasWrap{
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  aspect-ratio:1 / 1!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+}
+#stickerColorEditor .tamaFillStage{
+  max-width:100%!important;
+  max-height:100%!important;
+}
+#stickerColorEditor .tamaFillCanvasWrap canvas{
+  max-width:100%!important;
+  max-height:100%!important;
+}
+</style>
+
+
+<style id="v186-group-color-square-preserve">
+/* v186: 色編集時だけグループ画像を正方形キャンバス中央へ配置。
+   元の画像比率・グループCanvasの寸法は保持し、CSSで縦横を潰さない。 */
+#stickerColorEditor .tamaFillCanvasWrap{
+  width:100%!important;
+  aspect-ratio:1 / 1!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:hidden!important;
+  position:relative!important;
+}
+#stickerColorEditor .tamaFillStage{
+  max-width:none!important;
+  max-height:none!important;
+}
+#stickerColorEditor #tamaFillCanvas{
+  max-width:none!important;
+  max-height:none!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:fill!important;
+}
+</style>
+
 </head>
 <body>
 <div id="stickerAddedToast" class="stickerAddedToast" aria-live="polite">スタンプを追加しました</div>
@@ -398,7 +479,7 @@ button{border:0;border-radius:13px;padding:12px 18px;background:#182b55;color:#f
 </div>
 <div class="stickerSizeRow"><button id="stickerSizeUp" class="stickerSizeBtn" type="button">大きくする</button><button id="stickerSizeDown" class="stickerSizeBtn" type="button">小さくする</button></div>
 <div class="layerRow"><button id="layerUp" type="button">前面へ</button><button id="layerDown" type="button">背面へ</button></div>
-<div class="stickerToolRow"><button id="stickerCopy" type="button">コピー</button><button id="stickerFlipX" type="button">左右反転</button><button id="stickerOutline" type="button">白枠：OFF</button></div><div class="stickerActionRow"><button id="stickerDelete" type="button" class="gray">削除</button><button id="stickerUndoDelete" type="button" class="gray" disabled>↶ 1つ前に戻る</button><button id="stickerRedoDelete" type="button" class="gray" disabled>↷ 1つ戻す</button></div>
+<div class="stickerToolRow"><button id="stickerCopy" type="button">コピー</button><button id="stickerFlipX" type="button">左右反転</button><button id="stickerOutline" type="button">白枠：OFF</button></div><div class="stickerActionRow"><button id="stickerDelete" type="button" class="gray">削除</button><button id="stickerUndoDelete" type="button" class="gray" disabled>↶ 1つ前に戻る</button><button id="stickerRedoDelete" type="button" class="gray" disabled>↷ 1つ戻す</button></div><div class="stickerActionRow stickerGroupActionRow"><button id="stickerGroup" type="button" class="gray" disabled>直下とグループ化</button><button id="stickerGroupOverlap" type="button" class="gray" disabled>重なりとグループ化</button><button id="stickerUngroup" type="button" class="gray" disabled>グループ解除</button></div>
 <button id="stickerColorOpen" class="stickerColorOpen" type="button">🎨 色を変更する</button>
 <div id="stickerColorBackdrop" class="stickerColorBackdrop" hidden></div>
 <div id="stickerColorEditor" class="stickerColorEditor" hidden>
@@ -629,7 +710,7 @@ document.getElementById('clearAllTextColors').onclick=resetAllTextColors;
 const bgFile=document.getElementById('bgFile');
 let selectedBG='backgrounds/blue.png';
 let customBG=null;
-// v171: 選択中の背景画像を使い回し、スタンプ追加のたびに同じ背景を再取得しない。
+// v181: 選択中の背景画像を使い回し、スタンプ追加のたびに同じ背景を再取得しない。
 let loadedBGUrl='';
 let loadedBGImage=null;
 let loadedBGPromise=null;
@@ -684,13 +765,107 @@ const assetDirCache=new Map();
 async function fetchAssetDirectory(path){
   const clean=String(path||'').replace(/^\/+|\/+$/g,'');
   if(assetDirCache.has(clean)) return assetDirCache.get(clean);
-  const url=ASSET_API_ROOT+clean+'?ref=main&_='+Date.now();
-  const r=await fetch(url,{cache:'no-store',headers:{'Accept':'application/vnd.github+json'}});
-  if(!r.ok) throw new Error('GitHub API '+r.status);
-  const data=await r.json();
-  const entries=Array.isArray(data)?data:[];
-  assetDirCache.set(clean,entries);
-  return entries;
+
+  /* v183: フォルダ一覧はGitHub Contents APIをフォルダごとに叩かず、
+     リポジトリのGit treeを1回取得してブラウザ内で階層化する。
+     これにより、フォルダを開くたびにGitHub APIを追加消費して
+     「フォルダの読み込みに失敗しました」になる問題を回避する。 */
+  if(!window.__tamaAssetTreePromise){
+    window.__tamaAssetTreePromise=(async function(){
+      const treeUrl='https://api.github.com/repos/tamagohiragana/tamatamatama/git/trees/main?recursive=1';
+      let lastError=null;
+      for(let attempt=0;attempt<2;attempt++){
+        try{
+          const r=await fetch(treeUrl,{
+            cache:'no-store',
+            headers:{'Accept':'application/vnd.github+json'}
+          });
+          if(!r.ok) throw new Error('GitHub tree API '+r.status);
+          const data=await r.json();
+          if(data && Array.isArray(data.tree) && !data.truncated){
+            return data.tree;
+          }
+          if(data && Array.isArray(data.tree) && data.truncated){
+            throw new Error('GitHub tree is truncated');
+          }
+          throw new Error('GitHub tree response is invalid');
+        }catch(e){
+          lastError=e;
+          if(attempt===0) await new Promise(r=>setTimeout(r,500));
+        }
+      }
+      throw lastError || new Error('GitHub tree fetch failed');
+    })().catch(function(e){
+      window.__tamaAssetTreePromise=null;
+      throw e;
+    });
+  }
+
+  try{
+    const tree=await window.__tamaAssetTreePromise;
+    const prefix=clean ? clean+'/' : '';
+    const childrenMap=new Map();
+
+    for(const node of tree){
+      const p=String(node.path||'');
+      if(!p.startsWith(prefix)) continue;
+      const rest=p.slice(prefix.length);
+      if(!rest) continue;
+      const slash=rest.indexOf('/');
+
+      if(slash<0){
+        // 直下のファイル
+        if(node.type==='blob'){
+          const name=rest;
+          childrenMap.set(name,{
+            name:name,
+            path:p,
+            type:'file',
+            download_url:'https://raw.githubusercontent.com/tamagohiragana/tamatamatama/main/'+p.split('/').map(encodeURIComponent).join('/'),
+            html_url:'https://github.com/tamagohiragana/tamatamatama/blob/main/'+p.split('/').map(encodeURIComponent).join('/')
+          });
+        }
+      }else{
+        // 直下のサブフォルダ。Git treeでは type=tree の実体も
+        // 返ってくるが、パスからも確実にフォルダを復元する。
+        const name=rest.slice(0,slash);
+        const childPath=prefix+name;
+        if(!childrenMap.has(name)){
+          childrenMap.set(name,{name:name,path:childPath,type:'dir'});
+        }
+      }
+    }
+
+    const entries=[...childrenMap.values()];
+    assetDirCache.set(clean,entries);
+    return entries;
+  }catch(treeError){
+    /* tree取得に失敗した場合だけ、従来のContents APIへフォールバック。 */
+    const encodedPath=clean.split('/').filter(Boolean).map(function(part){
+      return encodeURIComponent(part);
+    }).join('/');
+    const url=ASSET_API_ROOT+encodedPath+'?ref=main';
+    let lastError=treeError;
+    for(let attempt=0;attempt<2;attempt++){
+      try{
+        const r=await fetch(url,{
+          cache:'no-store',
+          headers:{'Accept':'application/vnd.github+json'}
+        });
+        if(r.ok){
+          const data=await r.json();
+          const entries=Array.isArray(data)?data:[];
+          assetDirCache.set(clean,entries);
+          return entries;
+        }
+        lastError=new Error('GitHub API '+r.status);
+      }catch(e){
+        lastError=e;
+      }
+      if(attempt===0) await new Promise(r=>setTimeout(r,700));
+    }
+    throw lastError || new Error('GitHub folder fetch failed');
+  }
 }
 function assetIsImage(e){
   return e && e.type==='file' && /\.(png|jpe?g)$/i.test(String(e.name||''));
@@ -1163,19 +1338,73 @@ function updateStickerElement(st){
     image.style.transformOrigin='center center';
     image.style.filter=st.whiteOutline?'drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(1.5px 1.5px 0 #fff) drop-shadow(-1.5px -1.5px 0 #fff)':'';
   }
+
+  // v176: グループはPNG化せず、DOM内のCanvasへ直接描画する。
+  // これならスマホでもグループ化直後に消えず、toDataURL()も不要。
+  if(st.isGroup){
+    const gc=el.querySelector('canvas.groupVisualCanvas');
+    if(gc && st.groupCanvas){
+      const dpr=window.devicePixelRatio||1;
+      const w=Math.max(1,Math.round(st.w));
+      const h=Math.max(1,Math.round(st.h));
+      if(gc.width!==w*dpr || gc.height!==h*dpr){
+        gc.width=w*dpr; gc.height=h*dpr;
+      }
+      gc.style.width='100%'; gc.style.height='100%';
+      const gx=gc.getContext('2d');
+      gx.setTransform(dpr,0,0,dpr,0,0);
+      gx.clearRect(0,0,w,h);
+      gx.imageSmoothingEnabled=false;
+      gx.drawImage(st.groupCanvas,0,0,w,h);
+      gc.style.transform=`scale(${st.flipX?-1:1},${st.flipY?-1:1})`;
+      gc.style.transformOrigin='center center';
+      gc.style.filter=st.whiteOutline?'drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff) drop-shadow(1.5px 1.5px 0 #fff) drop-shadow(-1.5px -1.5px 0 #fff)':'';
+    }
+  }
 }
 function updateLayerVisuals(){
   const textIndex=layerOrder.indexOf('text');
   textCanvas.style.zIndex=String(textIndex+1);
-  for(const st of stickers){
-    const i=layerOrder.indexOf(st);
-    st.el.style.zIndex=String(i+1);
-    updateStickerElement(st);
-  }
+  const topSet=new Set(layerOrder.filter(x=>x!=='text'));
+
+  // stickers contains the top-level nodes. Children inside a group remain in
+  // stickers only while the group is being constructed, and their DOM is
+  // hidden once grouped so the group canvas is rendered exactly once.
+  const visit=(st)=>{
+    if(!st||!st.el)return;
+    const visible=topSet.has(st);
+    st.el.style.display=visible?'':'none';
+    if(visible){
+      const i=layerOrder.indexOf(st);
+      if(i>=0)st.el.style.zIndex=String(i+1);
+      updateStickerElement(st);
+    }
+    if(st.isGroup){
+      for(const child of (st.children||[])) visit(child);
+    }
+  };
+
+  for(const st of stickers) visit(st);
 }
 function drawStickerToCanvas(target,st){
-  if(!st?.img?.complete)return;
+  if(!st)return;
+  if(st.isGroup){
+    const source=st.groupCanvas;
+    if(!source)return;
+    const w=st.w,h=st.h;
+    target.save();
+    target.translate(st.x,st.y);
+    target.rotate(st.rot||0);
+    target.scale(st.flipX?-1:1,st.flipY?-1:1);
+    target.imageSmoothingEnabled=false;
+    // グループ自身の白枠は、グループCanvas全体に対して描画する。
+    if(st.whiteOutline) drawStickerOutline(target,source,w,h,Math.max(2,Math.min(12,st.outlinePx||5)));
+    target.drawImage(source,-w/2,-h/2,w,h);
+    target.restore();
+    return;
+  }
   const source=st.colorWorkCanvas||st.img;
+  if(!source || !source.complete)return;
   const w=st.w,h=st.h;
   target.save();
   target.translate(st.x,st.y);
@@ -1184,6 +1413,37 @@ function drawStickerToCanvas(target,st){
   target.imageSmoothingEnabled=false;
   if(st.whiteOutline) drawStickerOutline(target,source,w,h,Math.max(2,Math.min(12,st.outlinePx||5)));
   target.drawImage(source,-w/2,-h/2,w,h);
+  target.restore();
+}
+
+function drawGroupNodeToCanvas(target,g,parentX,parentY){
+  if(!g||!g.isGroup)return;
+  const sx=(g._baseW>0)?g.w/g._baseW:1;
+  const sy=(g._baseH>0)?g.h/g._baseH:1;
+  target.save();
+  target.translate(g.x-parentX,g.y-parentY);
+  target.rotate(g.rot||0);
+  target.scale((g.flipX?-1:1)*sx,(g.flipY?-1:1)*sy);
+  target.imageSmoothingEnabled=false;
+
+  for(const child of (g.children||[])){
+    if(child?.isGroup){
+      drawGroupNodeToCanvas(target,child,g.x,g.y);
+      continue;
+    }
+    const source=child?.colorWorkCanvas||child?.img;
+    if(!source || !source.complete)continue;
+    target.save();
+    target.translate(child.x-g.x,child.y-g.y);
+    target.rotate(child.rot||0);
+    target.scale(child.flipX?-1:1,child.flipY?-1:1);
+    if(child.whiteOutline){
+      drawStickerOutline(target,source,child.w,child.h,Math.max(2,Math.min(12,child.outlinePx||5)));
+    }else{
+      target.drawImage(source,-child.w/2,-child.h/2,child.w,child.h);
+    }
+    target.restore();
+  }
   target.restore();
 }
 function drawStickerOutline(target,img,w,h,pad){
@@ -1208,6 +1468,192 @@ function drawStickerOutline(target,img,w,h,pad){
   }
   target.drawImage(c,-w/2-pad,-h/2-pad);
 }
+
+/* v172: スタンプの階層グループ
+ * 選択中のスタンプ（またはグループ）と、その直下の1層だけをグループ化。
+ * グループは何度でも別の直下要素と再グループ化できる。
+ */
+function nodeCorners(st){
+  const c=Math.cos(st.rot||0), s=Math.sin(st.rot||0), hw=st.w/2, hh=st.h/2;
+  const pts=[[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]];
+  return pts.map(([x,y])=>({x:st.x+x*c-y*s,y:st.y+x*s+y*c}));
+}
+function groupSource(st){return st.isGroup?(st.groupCanvas||st.img):(st.colorWorkCanvas||st.img)}
+function drawNodeIntoGroupCanvas(gctx,node,g){
+  const source=groupSource(node); if(!source)return;
+  const sw=source.width||source.naturalWidth, sh=source.height||source.naturalHeight;
+  if(!sw||!sh)return;
+  gctx.save();
+  const ox=Number.isFinite(g._originX)?g._originX:(g.x-g.w/2);
+  const oy=Number.isFinite(g._originY)?g._originY:(g.y-g.h/2);
+  gctx.translate(node.x-ox,node.y-oy);
+  gctx.rotate(node.rot||0);
+  gctx.scale(node.flipX?-1:1,node.flipY?-1:1);
+  gctx.imageSmoothingEnabled=false;
+  if(node.whiteOutline){
+    // 白枠は「白いシルエット」だけで終わらせず、元画像を必ず重ねる。
+    // これにより白枠ONのスタンプをグループ化しても真っ白にならない。
+    drawStickerOutline(gctx,source,node.w,node.h,Math.max(2,Math.min(12,node.outlinePx||5)));
+  }
+  gctx.drawImage(source,-node.w/2,-node.h/2,node.w,node.h);
+  gctx.restore();
+}
+function rebuildGroupCanvas(g){
+  const corners=[];
+  for(const child of g.children||[]) corners.push(...nodeCorners(child));
+  if(!corners.length)return;
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const p of corners){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)}
+  const pad=2;
+  const w=Math.max(1,Math.ceil(maxX-minX+pad*2)),h=Math.max(1,Math.ceil(maxY-minY+pad*2));
+  g.x=(minX+maxX)/2; g.y=(minY+maxY)/2; g.w=w; g.h=h;
+  // Canvas coordinates start at (0,0), whereas child coordinates are absolute
+  // composition coordinates. Store the canvas origin explicitly so the full
+  // children are rasterized instead of being clipped around the group's center.
+  g._originX=minX-pad; g._originY=minY-pad;
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const q=c.getContext('2d');q.imageSmoothingEnabled=false;
+  for(const child of g.children)drawNodeIntoGroupCanvas(q,child,g);
+  g.groupCanvas=c;g._hitAlphaInfo=null;
+  // グループCanvas自体をヒットテストの元画像として使う。
+  // DOM上のCanvasはpointer-events:noneなので、タッチは必ずgroup要素へ届く。
+  // グループの表示はDOM内Canvasへ直接描画するため、PNG化はしない。
+}
+function createGroup(members){
+  const el=document.createElement('div');el.className='stickerItem selected';
+  const im=document.createElement('canvas');im.className='groupVisualCanvas';im.setAttribute('aria-label','スタンプグループ');
+  im.style.display='block';im.style.width='100%';im.style.height='100%';im.style.imageRendering='pixelated';
+  im.style.pointerEvents='none';
+  const rot=document.createElement('button');rot.type='button';rot.className='rotateHandle';rot.textContent='↻';rot.title='回転';rot.setAttribute('aria-label','回転');
+  el.append(im,rot);stickerLayer.appendChild(el);
+  const g={isGroup:true,name:'スタンプグループ',children:members,x:0,y:0,w:1,h:1,rot:0,flipX:false,flipY:false,whiteOutline:false,outlinePx:5,el,pointers:new Map(),dragStart:null,gesture:null,rotatePointer:null,rotateBase:0,rotateStartAngle:0,_hitAlphaInfo:null};
+  rebuildGroupCanvas(g);
+  const start=members[0];
+  g._baseW=g.w;g._baseH=g.h;
+  g._groupPointerHandlers=true;
+  el.addEventListener('pointerdown',e=>{
+    if(e.target===rot)return;
+    if(!isStickerPixelHit(g,e.clientX,e.clientY)){
+      const target=pickStickerAt(e.clientX,e.clientY);
+      if(target&&target!==g){e.preventDefault();e.stopImmediatePropagation();selectSticker(target);clonePointerEventForSticker(e,target.el);return;}
+      e.preventDefault();e.stopImmediatePropagation();deselectStickers();return;
+    }
+    e.preventDefault();selectSticker(g);el.setPointerCapture?.(e.pointerId);
+    g.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(g.pointers.size===1)g.dragStart={x:e.clientX,y:e.clientY,sx:g.x,sy:g.y};
+    else if(g.pointers.size===2){const a=[...g.pointers.values()];g.gesture={dist:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),angle:Math.atan2(a[1].y-a[0].y,a[1].x-a[0].x),w:g.w,h:g.h,rot:g.rot}}
+  });
+  el.addEventListener('pointermove',e=>{
+    if(!g.pointers.has(e.pointerId))return;e.preventDefault();g.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    const pts=[...g.pointers.values()],r=stickerLayer.getBoundingClientRect();
+    if(pts.length===1&&g.dragStart){g.x=g.dragStart.sx+(e.clientX-g.dragStart.x)*1200/r.width;g.y=g.dragStart.sy+(e.clientY-g.dragStart.y)*1200/r.height}
+    else if(pts.length===2&&g.gesture){const d=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y),a=Math.atan2(pts[1].y-pts[0].y,pts[1].x-pts[0].x),ratio=Math.max(.15,Math.min(4,d/g.gesture.dist));g.w=g.gesture.w*ratio;g.h=g.gesture.h*ratio;g.rot=g.gesture.rot+(a-g.gesture.angle)}
+    updateStickerElement(g);
+  });
+  const end=e=>{g.pointers.delete(e.pointerId);if(g.pointers.size===0){g.dragStart=null;g.gesture=null}else if(g.pointers.size===1){const p=[...g.pointers.values()][0];g.dragStart={x:p.x,y:p.y,sx:g.x,sy:g.y}}};
+  el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);
+  rot.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();selectSticker(g);rot.setPointerCapture?.(e.pointerId);const rr=el.getBoundingClientRect(),cx=rr.left+rr.width/2,cy=rr.top+rr.height/2;g.rotatePointer=e.pointerId;g.rotateBase=g.rot;g.rotateStartAngle=Math.atan2(e.clientY-cy,e.clientX-cx)});
+  rot.addEventListener('pointermove',e=>{if(g.rotatePointer!==e.pointerId)return;const rr=el.getBoundingClientRect(),cx=rr.left+rr.width/2,cy=rr.top+rr.height/2;g.rot=g.rotateBase+(Math.atan2(e.clientY-cy,e.clientX-cx)-g.rotateStartAngle);updateStickerElement(g)});
+  rot.addEventListener('pointerup',e=>{if(g.rotatePointer===e.pointerId)g.rotatePointer=null});rot.addEventListener('pointercancel',e=>{if(g.rotatePointer===e.pointerId)g.rotatePointer=null});
+  return g;
+}
+function getStickerAABB(st){
+  if(!st)return null;
+  const hw=Math.abs(st.w||0)/2, hh=Math.abs(st.h||0)/2;
+  const a=st.rot||0, c=Math.cos(a), sn=Math.sin(a);
+  const pts=[
+    {x:-hw,y:-hh},{x:hw,y:-hh},{x:hw,y:hh},{x:-hw,y:hh}
+  ].map(p=>({x:st.x+p.x*c-p.y*sn,y:st.y+p.x*sn+p.y*c}));
+  return {
+    minX:Math.min(...pts.map(p=>p.x)),maxX:Math.max(...pts.map(p=>p.x)),
+    minY:Math.min(...pts.map(p=>p.y)),maxY:Math.max(...pts.map(p=>p.y))
+  };
+}
+function stickersOverlap(a,b){
+  const A=getStickerAABB(a),B=getStickerAABB(b);
+  if(!A||!B)return false;
+  return A.minX < B.maxX && A.maxX > B.minX &&
+         A.minY < B.maxY && A.maxY > B.minY;
+}
+function findOverlappingBelow(st){
+  const i=layerOrder.indexOf(st);
+  if(i<=0)return null;
+  // 選択中のレイヤーより下を、最も近いレイヤーから順に調べる。
+  // 「重なっている」もののうち最も直下に近いものを対象にする。
+  for(let j=i-1;j>=0;j--){
+    const candidate=layerOrder[j];
+    if(candidate==='text'||!candidate)continue;
+    if(stickersOverlap(st,candidate))return candidate;
+  }
+  return null;
+}
+function groupSelectedWithOverlap(){
+  const st=selectedSticker;if(!st)return;
+  const below=findOverlappingBelow(st);
+  if(!below)return;
+
+  const g=createGroup([below,st]);
+  g._nonContiguousGroup=true;
+  for(const member of [below,st]){
+    if(member?.el)member.el.style.display='none';
+  }
+  const i=layerOrder.indexOf(st), j=layerOrder.indexOf(below);
+  if(i<0||j<0)return;
+
+  // 「重なりとグループ化」は非連続レイヤーにも対応する。
+  // 選択中のレイヤーと対象レイヤーだけをグループに置き換え、
+  // その間にあるレイヤーは layerOrder に残す。
+  // 例: 1 / 2 / 3 で 1と3をグループ化
+  //      → 2 / グループ(1+3)
+  // となり、2は消えない。
+  const lo=Math.min(i,j), hi=Math.max(i,j);
+  stickers=stickers.filter(x=>x!==below&&x!==st);stickers.push(g);
+
+  // グループは2つのうち上側（hi）の位置に置く。
+  // 中間レイヤーはそのまま残す。
+  layerOrder.splice(hi,1,g);
+  layerOrder.splice(lo,1);
+
+  selectSticker(g);updateLayerVisuals();renderComposition();
+}
+
+function groupSelectedWithBelow(){
+  const st=selectedSticker;if(!st)return;
+  const i=layerOrder.indexOf(st);if(i<=0)return;
+  const below=layerOrder[i-1];if(!below||below==='text')return;
+  const members=[below,st];
+  const g=createGroup(members);
+
+  // Members are now represented by the group's canvas. Keep their DOM nodes
+  // in memory for ungrouping, but never display them independently.
+  for(const member of members){
+    if(member?.el)member.el.style.display='none';
+  }
+
+  stickers=stickers.filter(x=>x!==below&&x!==st);stickers.push(g);
+  layerOrder.splice(i-1,2,g);selectSticker(g);updateLayerVisuals();renderComposition();
+}
+function ungroupSelected(){
+  const g=selectedSticker;if(!g?.isGroup)return;
+  // グループ自身の変形を子へ焼き込み、解除後も見た目を維持する。
+  const sx=g.w/g._baseW, sy=g.h/g._baseH, c=Math.cos(g.rot||0), sn=Math.sin(g.rot||0);
+  for(const child of g.children){
+    const dx=child.x-g.x,dy=child.y-g.y;
+    child.x=g.x+(dx*sx*c-dy*sy*sn);child.y=g.y+(dx*sx*sn+dy*sy*c);
+    child.w*=sx;child.h*=sy;child.rot+=(g.rot||0);
+    if(child.isGroup){child._baseW=child.w;child._baseH=child.h;}
+    child.el.style.display='';
+  }
+  g.el.remove();
+  stickers=stickers.filter(x=>x!==g);
+  const li=layerOrder.indexOf(g);if(li>=0)layerOrder.splice(li,1,...g.children);
+  for(const child of (g.children||[])){
+    if(child?.el)child.el.style.display='';
+  }
+  stickers.push(...g.children);
+  selectSticker(g.children[g.children.length-1]||null);updateLayerVisuals();renderComposition();
+}
+
 function updateLayerButtons(){
   const up=document.getElementById('layerUp'),down=document.getElementById('layerDown');
   if(!up||!down)return;
@@ -1217,6 +1663,7 @@ function updateLayerButtons(){
 }
 function selectSticker(st){
   selectedSticker=st||null; window.__tamaSelectedStickerFlag=!!selectedSticker;
+  if(selectedSticker?.isGroup) selectedSticker._hitAlphaInfo=null;
   for(const x of stickers) x.el.classList.toggle('selected',x===selectedSticker);
   updateLayerButtons();
   renderStickerTools();
@@ -1299,6 +1746,9 @@ const MAX_STICKER_DELETE_HISTORY=5;
 
 function stickerSourceForHitTest(st){
   if(!st)return null;
+  // グループは通常のPNG画像ではなくgroupCanvasを表示元にしているため、
+  // 選択解除後に再選択するときもgroupCanvas自身を透明ピクセル判定に使う。
+  if(st.isGroup && st.groupCanvas)return st.groupCanvas;
   return st.colorWorkCanvas||st.colorBaseCanvas||st.img||null;
 }
 
@@ -1365,6 +1815,7 @@ function isStickerPixelHit(st,clientX,clientY){
   const p=stickerPointToPixel(st,clientX,clientY);
   if(!p)return false;
   const i=(p.y*p.info.w+p.x)*4;
+  // 透明度20/255以下は「透明」として扱う。
   return p.info.data[i+3]>20;
 }
 
@@ -1580,23 +2031,32 @@ function addSticker(img,name,showToast=true){
 }
 function renderStickerTools(){
   const copy=document.getElementById('stickerCopy'), flipX=document.getElementById('stickerFlipX'), outline=document.getElementById('stickerOutline');
+  const groupBtn=document.getElementById('stickerGroup'), overlapGroupBtn=document.getElementById('stickerGroupOverlap'), ungroupBtn=document.getElementById('stickerUngroup');
   if(!copy||!flipX||!outline)return;
   if(!selectedSticker){
     copy.disabled=true;flipX.disabled=true;outline.disabled=true;
-    copy.textContent='コピー';flipX.textContent='↔ 左右反転';
-    outline.textContent='白枠：OFF';outline.classList.remove('active');return;
+    copy.textContent='コピー';flipX.textContent='↔ 左右反転';outline.textContent='白枠：OFF';outline.classList.remove('active');
+    if(groupBtn)groupBtn.disabled=true;if(overlapGroupBtn)overlapGroupBtn.disabled=true;if(ungroupBtn)ungroupBtn.disabled=true;return;
   }
-  copy.disabled=false;flipX.disabled=false;outline.disabled=false;
+  copy.disabled=!!selectedSticker.isGroup;flipX.disabled=false;outline.disabled=false;
   copy.textContent='コピー';
-  flipX.textContent=selectedSticker.flipX?'↔ 左右反転：ON':'↔ 左右反転';
-  flipX.classList.toggle('active',!!selectedSticker.flipX);
-  outline.textContent=selectedSticker.whiteOutline?'白枠：ON':'白枠：OFF';
-  outline.classList.toggle('active',!!selectedSticker.whiteOutline);
+  flipX.textContent=selectedSticker.flipX?'↔ 左右反転：ON':'↔ 左右反転';flipX.classList.toggle('active',!!selectedSticker.flipX);
+  outline.textContent=selectedSticker.whiteOutline?'白枠：ON':'白枠：OFF';outline.classList.toggle('active',!!selectedSticker.whiteOutline);
+  const i=layerOrder.indexOf(selectedSticker);
+  if(groupBtn){
+    const below=(i>0)?layerOrder[i-1]:null;
+    // 「直下とグループ化」は直下のレイヤーが存在すれば実行可能。
+    groupBtn.disabled=i<=0||below==='text'||!below;
+  }
+  if(overlapGroupBtn){
+    // 「重なりとグループ化」は下層に実際に重なるレイヤーがある場合だけ有効。
+    overlapGroupBtn.disabled=!findOverlappingBelow(selectedSticker);
+  }
+  if(ungroupBtn)ungroupBtn.disabled=!selectedSticker.isGroup;
 }
-
 function copySelectedSticker(){
   const src=selectedSticker;
-  if(!src)return;
+  if(!src||src.isGroup)return;
 
   // 色変更後の「完成画像」を確実にコピーする。
   // colorWorkCanvasが未生成のケースでも、現在の色設定から先に再構築する。
@@ -1694,6 +2154,9 @@ function copySelectedSticker(){
 }
 
 document.getElementById('stickerCopy').onclick=copySelectedSticker;
+const stickerGroupBtn=document.getElementById('stickerGroup'); if(stickerGroupBtn)stickerGroupBtn.onclick=groupSelectedWithBelow;
+const stickerGroupOverlapBtn=document.getElementById('stickerGroupOverlap'); if(stickerGroupOverlapBtn)stickerGroupOverlapBtn.onclick=groupSelectedWithOverlap;
+const stickerUngroupBtn=document.getElementById('stickerUngroup'); if(stickerUngroupBtn)stickerUngroupBtn.onclick=ungroupSelected;
 document.getElementById('stickerFlipX').onclick=()=>{
   if(!selectedSticker)return;
   selectedSticker.flipX=!selectedSticker.flipX;
@@ -1718,6 +2181,20 @@ stickerFile.onchange=e=>{
   im.src=u;
 };
 composeCanvas.addEventListener('pointerdown',()=>deselectStickers());
+
+/* v177: グループの透明領域では下層スタンプを選択できるようにする。
+   stickerLayerのcapture段階で「実ピクセル」を調べ、ヒットした最上位
+   レイヤーを選択する。既存の各スタンプのドラッグ処理はそのまま利用する。 */
+stickerLayer.addEventListener('pointerdown',function(e){
+  if(e.target && e.target.classList && e.target.classList.contains('rotateHandle'))return;
+  const hit=pickStickerAt(e.clientX,e.clientY);
+  if(!hit)return;
+  if(hit===selectedSticker)return;
+  e.preventDefault();
+  e.stopPropagation();
+  selectSticker(hit);
+  clonePointerEventForSticker(e,hit.el);
+},true);
 document.getElementById('layerUp').onclick=()=>moveSelectedLayer(1);
 document.getElementById('layerDown').onclick=()=>moveSelectedLayer(-1);
 function resizeSelectedSticker(factor){
@@ -2921,6 +3398,27 @@ document.getElementById('copy2').onclick=()=>navigator.clipboard.writeText(docum
   const lum=p=>.2126*p[0]+.7152*p[1]+.0722*p[2];
   function baseCanvas(st){
     if(st.colorBaseCanvas?.width&&st.colorBaseCanvas?.height)return st.colorBaseCanvas;
+    // グループはimgを持たずgroupCanvasが表示元なので、
+    // その現在の合成画像を色編集の元画像として固定する。
+    if(st?.isGroup&&st.groupCanvas?.width&&st.groupCanvas?.height){
+      // グループの元画像は縦長/横長のまま保持する。
+      // 色編集画面だけは正方形の作業キャンバスにして、中央に元画像を
+      // そのままの縦横比で配置する。これで「正方形に合わせて潰れる」
+      // ことを防ぎつつ、塗りつぶし等の座標系も正方形キャンバス上で統一する。
+      const src=st.groupCanvas;
+      const side=Math.max(1,Math.max(src.width,src.height));
+      const c=document.createElement('canvas');
+      c.width=side; c.height=side;
+      const x=c.getContext('2d',{willReadFrequently:true});
+      x.imageSmoothingEnabled=false;
+      const ox=Math.floor((side-src.width)/2), oy=Math.floor((side-src.height)/2);
+      x.drawImage(src,ox,oy,src.width,src.height);
+      st._groupColorOffsetX=ox; st._groupColorOffsetY=oy;
+      st._groupColorOriginalW=src.width; st._groupColorOriginalH=src.height;
+      st.colorBaseCanvas=c;
+      st.colorBaseSig=c.width+'x'+c.height;
+      return c;
+    }
     const im=st?.img;if(!im?.naturalWidth||!im?.naturalHeight)return null;
     const sc=Math.min(1,1024/Math.max(im.naturalWidth,im.naturalHeight));
     const c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.naturalWidth*sc));c.height=Math.max(1,Math.round(im.naturalHeight*sc));
@@ -2955,7 +3453,23 @@ document.getElementById('copy2').onclick=()=>navigator.clipboard.writeText(docum
     // Pixel-level fill overrides are deliberately applied last: they are literal paint, not palette colors.
     if(st.paintOverrides instanceof Map)for(const [idx,hx] of st.paintOverrides){const i=Number(idx);const q=hexToRgb(hx);if(q&&i>=0&&i+3<d.length){d[i]=q[0];d[i+1]=q[1];d[i+2]=q[2];d[i+3]=Math.max(d[i+3],255)}}
     x.putImageData(im,0,0);
-    const dom=st.el?.querySelector('img');if(dom){dom.src=c.toDataURL('image/png');dom.style.transform=`scale(${st.flipX?-1:1},${st.flipY?-1:1})`}
+    if(st.isGroup){
+      // 色編集用の正方形キャンバスから、元のグループ寸法だけを切り出して
+      // groupCanvasへ戻す。表示上の縦横比・グループの境界は変えない。
+      const ow=Number(st._groupColorOriginalW)||st.groupCanvas?.width||c.width;
+      const oh=Number(st._groupColorOriginalH)||st.groupCanvas?.height||c.height;
+      const ox=Number(st._groupColorOffsetX)||0, oy=Number(st._groupColorOffsetY)||0;
+      const out=document.createElement('canvas'); out.width=ow; out.height=oh;
+      const oq=out.getContext('2d',{willReadFrequently:true});
+      oq.imageSmoothingEnabled=false; oq.clearRect(0,0,ow,oh);
+      oq.drawImage(c,ox,oy,ow,oh,0,0,ow,oh);
+      st.groupCanvas=out;
+      st._hitAlphaInfo=null;
+      if(typeof updateStickerElement==='function')updateStickerElement(st);
+    }else{
+      const dom=st.el?.querySelector('img');
+      if(dom){dom.src=c.toDataURL('image/png');dom.style.transform=`scale(${st.flipX?-1:1},${st.flipY?-1:1})`}
+    }
     return c;
   }
   function commit(st){if(!st)return;ensureCommitCanvas(st);if(typeof updateStickerElement==='function')updateStickerElement(st);if(typeof renderComposition==='function')renderComposition();updatePreview(st);const fp=document.getElementById('tamaFillPanel');if(fp&&!fp.hidden&&st.colorMode==='palette')requestAnimationFrame(()=>renderFill(st))}
@@ -3640,7 +4154,26 @@ document.getElementById('copy2').onclick=()=>navigator.clipboard.writeText(docum
   copyBtn?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(!st)return;const data=st.colorMode==='palette'?{v:3,mode:'palette',colors:st.palette.map(p=>({original:p.original,color:p.color,locked:!!p.locked})),protectOutline:st.protectOutline!==false}:{v:3,mode:'hsl',hsl:{...st.hsl}};localStorage.setItem('TAMA_STICKER_PALETTE_CLIPBOARD_V3',JSON.stringify(data));if(hint)hint.textContent='カラーパレットをコピーしました。'},true);
   pasteBtn?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const st=get();if(!st)return;let data=null;try{data=JSON.parse(localStorage.getItem('TAMA_STICKER_PALETTE_CLIPBOARD_V3')||localStorage.getItem('TAMA_STICKER_PALETTE_CLIPBOARD_V2')||'null')}catch(_){}if(!data){if(hint)hint.textContent='コピーされたカラーパレットがありません。';return}if(st.colorMode==='palette'&&data.mode==='palette'){st.palette.forEach(p=>{let best=null,bd=Infinity;for(const q of data.colors||[]){const dd=(p.original[0]-q.original[0])**2+(p.original[1]-q.original[1])**2+(p.original[2]-q.original[2])**2;if(dd<bd){bd=dd;best=q}}if(best){p.color=best.color;p.locked=!!best.locked}});st.protectOutline=data.protectOutline!==false;commit(st);setMode(st);if(hint)hint.textContent='カラーパレットを貼り付けました。'}else if(st.colorMode==='hsl'&&data.mode==='hsl'){st.hsl={...data.hsl};commit(st);setMode(st)}},true);
 
-  function openColorEditor(){const st=get();if(!st)return;if(!st.colorReady||!st.colorMode)analyze(st);else analyze(st);editor.hidden=false;backdrop.hidden=false;editor.style.zIndex='1000000';backdrop.style.zIndex='999990';setMode(st);if(st.colorMode==='palette')renderPalette(st);}
+  function openColorEditor(){
+    const st=get();
+    if(!st)return;
+    // グループはPNG/imgを持たずgroupCanvasが唯一の完成画像。
+    // 初回だけ最新の子要素からgroupCanvasを再確認して色解析する。
+    // 既に色編集済みのグループは再構築せず、編集結果を保持する。
+    if(st.isGroup && st.groupCanvas && (!st.colorReady || !st.colorMode)){
+      try{ rebuildGroupCanvas(st); }catch(e){}
+      st.colorBaseCanvas=null;
+      st.colorBaseSig='';
+      st.colorWorkCanvas=null;
+    }
+    analyze(st);
+    editor.hidden=false;
+    backdrop.hidden=false;
+    editor.style.zIndex='1000000';
+    backdrop.style.zIndex='999990';
+    setMode(st);
+    if(st.colorMode==='palette')renderPalette(st);
+  }
   function closeColorEditor(){closeFillColorPicker();const st=get();if(st){st.fillMode=false;st.pencilMode=false;}editor.hidden=true;backdrop.hidden=true;customPicker.hidden=true;pickerPurpose='palette';const panel=document.getElementById('tamaFillPanel');if(panel)panel.hidden=true}
   window.openStickerColorEditor=openColorEditor;window.closeStickerColorEditor=closeColorEditor;
   closeBtn?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();closeColorEditor()},true);
