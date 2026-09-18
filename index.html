@@ -2437,8 +2437,55 @@ async function readRecoveryQR(file){
 
 // Override the v11 PNG button: save the exact square composition shown in the preview.
 let lastPngData=null;
+
+/* v187: iPhone/SafariでPNG保存時に、表示済みスタンプが一部欠落するのを防ぐ。
+   DOMプレビューでは表示済みでも、exportCanvas.drawImage()の直前に
+   HTMLImageElementのデコードが完了していない場合があるため、
+   PNG書き出し前にすべての画像ソースのdecode/load完了を待つ。 */
+async function waitForStickerSource(node){
+  if(!node)return;
+  if(node.isGroup){
+    for(const child of (node.children||[])){
+      await waitForStickerSource(child);
+    }
+    return;
+  }
+  const img=node.colorWorkCanvas ? null : node.img;
+  if(!img)return;
+  try{
+    if(typeof img.decode==='function'){
+      await img.decode();
+    }else if(!img.complete || !img.naturalWidth){
+      await new Promise(resolve=>{
+        const done=()=>{cleanup();resolve();};
+        const cleanup=()=>{
+          img.removeEventListener('load',done);
+          img.removeEventListener('error',done);
+        };
+        img.addEventListener('load',done,{once:true});
+        img.addEventListener('error',done,{once:true});
+        if(img.complete && img.naturalWidth)done();
+      });
+    }
+  }catch(e){
+    /* decode()がSafariで失敗しても、既に読み込まれていればdrawImageへ進む */
+  }
+}
+
+async function waitForAllStickerSources(){
+  const seen=new Set();
+  const list=[];
+  for(const node of layerOrder){
+    if(node==='text'||!node||seen.has(node))continue;
+    seen.add(node);
+    list.push(waitForStickerSource(node));
+  }
+  await Promise.all(list);
+}
+
 async function makePngData(){
   await renderComposition();
+  await waitForAllStickerSources();
   const exportCanvas=document.createElement('canvas'); exportCanvas.width=1200; exportCanvas.height=1200;
   const ec=exportCanvas.getContext('2d'); ec.imageSmoothingEnabled=false;
   ec.drawImage(composeCanvas,0,0);
