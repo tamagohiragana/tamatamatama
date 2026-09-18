@@ -792,7 +792,9 @@ async function importZipAsAssetFolder(file,kind){
   }
   entries.sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true,sensitivity:'base'}));
   const folder={type:'dir',name:folderName,path:id,localZip:true,kind,entries};
-  localZipFolders[kind].push(folder);localZipFolderMap.set(id,folder);
+  localZipFolders[kind].push(folder);
+  localZipFolderMap.set(id,folder);
+  // ルート表示を即時更新し、ZIPフォルダを通常のフォルダと同じように認識させる。
   if(assetBrowserRefreshers[kind])await assetBrowserRefreshers[kind]();
   setFolderStatus(kind==='bg'?'bgFolderStatus':'stickerFolderStatus','ZIP「'+folderName+'」：画像 '+entries.length+'個');
   return folder;
@@ -1457,7 +1459,10 @@ function drawStickerToCanvas(target,st){
     return;
   }
   const source=st.colorWorkCanvas||st.img;
-  if(!source || !source.complete)return;
+  if(!source)return;
+  // HTMLImageElementにはcomplete確認が必要だが、Canvasにはcompleteプロパティがない。
+  // 色変更後はcolorWorkCanvasを使うため、Canvasを「未読込」と誤判定しない。
+  if(typeof HTMLImageElement!=='undefined' && source instanceof HTMLImageElement && !source.complete)return;
   const w=st.w,h=st.h;
   target.save();
   target.translate(st.x,st.y);
@@ -1485,7 +1490,8 @@ function drawGroupNodeToCanvas(target,g,parentX,parentY){
       continue;
     }
     const source=child?.colorWorkCanvas||child?.img;
-    if(!source || !source.complete)continue;
+    if(!source)continue;
+    if(typeof HTMLImageElement!=='undefined' && source instanceof HTMLImageElement && !source.complete)continue;
     target.save();
     target.translate(child.x-g.x,child.y-g.y);
     target.rotate(child.rot||0);
@@ -2509,7 +2515,10 @@ async function waitForStickerSource(node){
     }
     return;
   }
-  const img=node.colorWorkCanvas ? null : node.img;
+  // 色変更済みスタンプはcolorWorkCanvas自体が描画ソース。
+  // Canvasは画像デコード待ち不要なので、そのままexportへ進める。
+  if(node.colorWorkCanvas)return;
+  const img=node.img;
   if(!img)return;
   try{
     if(typeof img.decode==='function'){
@@ -2546,6 +2555,14 @@ function isIOSBrowser(){return /iPad|iPhone|iPod/.test(navigator.userAgent||'') 
 async function buildExportCanvas(){
   await renderComposition();
   await waitForAllStickerSources();
+  // SafariではrenderComposition直後に画像デコードが遅延する場合があるため、
+  // export対象のHTMLImageElementを最後に1回だけ確認する。
+  for(const node of layerOrder){
+    if(node==='text'||!node||node.isGroup||node.colorWorkCanvas)continue;
+    if(node.img && typeof node.img.decode==='function'){
+      try{await node.img.decode();}catch(e){}
+    }
+  }
   const exportCanvas=document.createElement('canvas'); exportCanvas.width=1200; exportCanvas.height=1200;
   const ec=exportCanvas.getContext('2d'); ec.imageSmoothingEnabled=false;
   ec.drawImage(composeCanvas,0,0);
